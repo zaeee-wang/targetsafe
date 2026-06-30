@@ -96,17 +96,21 @@ class PublicDataSources:
 
     def get_pubchem_reference_records(self, drugs: list[dict[str, Any]]) -> list[dict[str, Any]]:
         records: list[dict[str, Any]] = []
-        for drug in drugs[:8]:
+        for drug in drugs[:16]:
             cid = str(drug.get("pubchem_cid") or "")
-            if not cid:
+            name = str(drug.get("name") or "")
+            if cid:
+                url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{urllib.parse.quote(cid)}/property/CanonicalSMILES,IsomericSMILES,MolecularFormula,MolecularWeight/JSON"
+            elif name:
+                url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{urllib.parse.quote(name)}/property/CanonicalSMILES,IsomericSMILES,MolecularFormula,MolecularWeight/JSON"
+            else:
                 continue
-            url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{urllib.parse.quote(cid)}/property/CanonicalSMILES,IsomericSMILES,MolecularFormula,MolecularWeight/JSON"
             payload = self._fetch_json("PubChem", url, {})
             if not payload:
                 records.append(
                     {
                         "drug_id": drug.get("drug_id"),
-                        "name": drug.get("name"),
+                        "name": name,
                         "pubchem_cid": cid,
                         "canonical_smiles": drug.get("smiles"),
                         "source_status": "fallback_reference",
@@ -117,8 +121,8 @@ class PublicDataSources:
             records.append(
                 {
                     "drug_id": drug.get("drug_id"),
-                    "name": drug.get("name"),
-                    "pubchem_cid": cid,
+                    "name": name,
+                    "pubchem_cid": cid or str(props.get("CID") or ""),
                     "canonical_smiles": props.get("CanonicalSMILES") or drug.get("smiles"),
                     "isomeric_smiles": props.get("IsomericSMILES"),
                     "molecular_formula": props.get("MolecularFormula"),

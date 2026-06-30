@@ -26,15 +26,28 @@ import {
   ZoomIn,
   ZoomOut
 } from "lucide-react";
-import { createRun, fetchDepiction, fetchKnownContext, fetchProfiles, fetchReferenceDrugs } from "./api";
+import {
+  createRun,
+  fetchCandidates,
+  fetchConformer,
+  fetchDepiction,
+  fetchKnownContext,
+  fetchProfiles,
+  fetchReferenceDrugs,
+  fetchRuntimeStatus,
+  importLibrary
+} from "./api";
 import type {
+  CandidatePage,
   Candidate,
   ConformerPayload,
   EvidenceGraph,
   KnownContext,
+  LibraryImportResult,
   PipelineResult,
   ReferenceDrug,
   RunRequest,
+  RuntimeStatus,
   Status,
   StructureDepiction
 } from "./types";
@@ -55,12 +68,22 @@ const DEFAULT_REQUEST: RunRequest = {
   target: "EGFR",
   seed_smiles: "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
   optimization_goal: "Maintain drug-likeness, reduce toxicity alerts, preserve EGFR evidence confidence",
-  candidate_count: 160,
-  compute_profile: "cpu-demo",
-  allow_network: false,
-  use_llm: false,
-  use_gpu: false,
-  enable_conformers: true
+  candidate_count: 96,
+  compute_profile: "full-research",
+  allow_network: true,
+  use_llm: true,
+  use_gpu: true,
+  enable_conformers: true,
+  library_sources: ["seed_analog", "chembl_target", "pubchem_reference"],
+  library_limit: 2000,
+  detailed_eval_limit: 300,
+  display_limit: 96,
+  conformer_limit: 24,
+  uploaded_smiles: [],
+  uploaded_library_id: null,
+  llm_api_key: "",
+  llm_base_url: "",
+  llm_model: "gpt-4.1-mini"
 };
 
 const STATUS_ORDER: Status[] = ["Go", "Hold", "No-Go"];
@@ -177,6 +200,7 @@ export default function App() {
   const [request, setRequest] = useState<RunRequest>(DEFAULT_REQUEST);
   const [profiles, setProfiles] = useState<Array<Record<string, unknown>>>([]);
   const [referenceDrugs, setReferenceDrugs] = useState<ReferenceDrug[]>([]);
+  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
   const [result, setResult] = useState<PipelineResult | null>(null);
   const [selectedId, setSelectedId] = useState<string>("");
   const [activeView, setActiveView] = useState<ViewId>("console");
@@ -184,7 +208,7 @@ export default function App() {
   const [knownContext, setKnownContext] = useState<KnownContext | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
-  const copy = COPY[locale];
+  const copy = COPY[locale] as Copy;
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -204,8 +228,9 @@ export default function App() {
           { id: "api-assisted", label: "API assisted", description: "Optional LLM graph-grounded summary." },
           { id: "full-research", label: "Full research mode", description: "Live evidence, GPU, and API support." }
         ]);
-      });
+    });
     fetchReferenceDrugs().then(setReferenceDrugs).catch(() => setReferenceDrugs([]));
+    fetchRuntimeStatus().then(setRuntimeStatus).catch(() => setRuntimeStatus(null));
   }, []);
 
   const selected = useMemo(() => {
@@ -233,7 +258,7 @@ export default function App() {
   }, [result]);
 
   async function runTriage(profileOverride?: string) {
-    const nextRequest = profileOverride ? { ...request, compute_profile: profileOverride } : request;
+    const nextRequest = profileOverride ? { ...request, ...profileRequestDefaults(profileOverride), compute_profile: profileOverride } : request;
     if (profileOverride && request.compute_profile !== profileOverride) setRequest(nextRequest);
     setLoading(true);
     setError("");
@@ -276,6 +301,7 @@ export default function App() {
             request={request}
             profiles={profiles}
             referenceDrugs={referenceDrugs}
+            runtimeStatus={runtimeStatus}
             result={result}
             counts={counts}
             loading={loading}
@@ -283,6 +309,7 @@ export default function App() {
             copy={copy}
             locale={locale}
             onRequestChange={setRequest}
+            onRuntimeStatus={setRuntimeStatus}
             onRun={runTriage}
           />
         )}
@@ -425,7 +452,10 @@ function TopCommand({
         <select
           value={request.compute_profile}
           aria-label={copy.top.computeProfile}
-          onChange={(event) => onRequestChange({ ...request, compute_profile: event.target.value })}
+          onChange={(event) => {
+            const profileId = event.target.value;
+            onRequestChange({ ...request, ...profileRequestDefaults(profileId), compute_profile: profileId });
+          }}
         >
           {profiles.map((profile) => (
             <option key={String(profile.id)} value={String(profile.id)}>
@@ -446,6 +476,7 @@ function RunConsole({
   request,
   profiles,
   referenceDrugs,
+  runtimeStatus,
   result,
   counts,
   loading,
@@ -453,11 +484,13 @@ function RunConsole({
   copy,
   locale,
   onRequestChange,
+  onRuntimeStatus,
   onRun
 }: {
   request: RunRequest;
   profiles: Array<Record<string, unknown>>;
   referenceDrugs: ReferenceDrug[];
+  runtimeStatus: RuntimeStatus | null;
   result: PipelineResult | null;
   counts: Record<Status, number>;
   loading: boolean;
@@ -465,10 +498,45 @@ function RunConsole({
   copy: Copy;
   locale: Locale;
   onRequestChange: (request: RunRequest) => void;
+  onRuntimeStatus: (status: RuntimeStatus | null) => void;
   onRun: (profileOverride?: string) => void;
 }) {
   const [seedDrawerOpen, setSeedDrawerOpen] = useState(false);
+  const [uploadText, setUploadText] = useState("");
+  const [uploadResult, setUploadResult] = useState<LibraryImportResult | null>(null);
+  const [uploading, setUploading] = useState(false);
   const seedOptions = useMemo(() => buildSeedPresets(referenceDrugs), [referenceDrugs]);
+  const activeRuntime = result?.runtime_status ?? runtimeStatus;
+  const selectedProfile = localizedProfile(
+    profiles.find((profile) => String(profile.id) === request.compute_profile) ?? { id: request.compute_profile },
+    copy
+  );
+
+  async function handleLibraryImport() {
+    if (!uploadText.trim()) return;
+    setUploading(true);
+    try {
+      const payload = await importLibrary("Pasted compound library", uploadText);
+      setUploadResult(payload);
+      onRequestChange({
+        ...request,
+        uploaded_library_id: payload.library_id,
+        library_sources: Array.from(new Set([...request.library_sources, "uploaded"]))
+      });
+    } catch {
+      setUploadResult(null);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function refreshRuntimeStatus() {
+    try {
+      onRuntimeStatus(await fetchRuntimeStatus());
+    } catch {
+      onRuntimeStatus(null);
+    }
+  }
 
   function applySeedPreset(preset: SeedPreset) {
     onRequestChange({
@@ -492,10 +560,15 @@ function RunConsole({
           <p className="eyebrow">{copy.console.eyebrow}</p>
           <h2>{copy.console.heading}</h2>
           <p>{copy.console.body}</p>
-          <button className="primary-action large" onClick={() => onRun("cpu-demo")} disabled={loading} type="button">
-            {loading ? <Loader2 className="spin" size={18} /> : <Play size={18} />}
-            {copy.console.runDemo}
-          </button>
+          <div className="run-action-row">
+            <button className="primary-action large" onClick={() => onRun()} disabled={loading} type="button">
+              {loading ? <Loader2 className="spin" size={18} /> : <Play size={18} />}
+              {copyText(copy, "console", "runSelected", "Run {profile}").replace("{profile}", selectedProfile.label)}
+            </button>
+            <button className="ghost-action" onClick={() => onRun("cpu-demo")} disabled={loading} type="button">
+              {copyText(copy, "console", "stableDemo", "Stable CPU demo")}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -538,6 +611,101 @@ function RunConsole({
             <Toggle label={copy.console.gpu} value={request.use_gpu} onChange={(use_gpu) => onRequestChange({ ...request, use_gpu })} />
             <Toggle label={copy.console.llm} value={request.use_llm} onChange={(use_llm) => onRequestChange({ ...request, use_llm })} />
           </div>
+          <div className="library-controls wide">
+            <label>
+              {copyText(copy, "console", "libraryLimit", "Library limit")}
+              <input
+                type="number"
+                min={20}
+                max={10000}
+                value={request.library_limit}
+                onChange={(event) => onRequestChange({ ...request, library_limit: Number(event.target.value) })}
+              />
+            </label>
+            <label>
+              {copyText(copy, "console", "detailedEvalLimit", "Detailed eval limit")}
+              <input
+                type="number"
+                min={20}
+                max={2000}
+                value={request.detailed_eval_limit}
+                onChange={(event) => onRequestChange({ ...request, detailed_eval_limit: Number(event.target.value) })}
+              />
+            </label>
+            <label>
+              {copyText(copy, "console", "displayLimit", "Rendered structures")}
+              <input
+                type="number"
+                min={10}
+                max={500}
+                value={request.display_limit}
+                onChange={(event) => onRequestChange({ ...request, display_limit: Number(event.target.value) })}
+              />
+            </label>
+          </div>
+          <div className="library-source-row wide">
+            {["seed_analog", "chembl_target", "pubchem_reference", "uploaded"].map((source) => (
+              <Toggle
+                key={source}
+                label={librarySourceLabel(source, copy)}
+                value={request.library_sources.includes(source)}
+                onChange={(checked) => {
+                  const next = checked
+                    ? Array.from(new Set([...request.library_sources, source]))
+                    : request.library_sources.filter((item) => item !== source);
+                  onRequestChange({ ...request, library_sources: next });
+                }}
+              />
+            ))}
+          </div>
+          <div className="api-key-panel wide">
+            <label>
+              {copyText(copy, "console", "llmApiKey", "LLM API key")}
+              <input
+                type="password"
+                autoComplete="off"
+                value={request.llm_api_key}
+                placeholder={copyText(copy, "console", "llmApiKeyPlaceholder", "Optional; leave blank for deterministic fallback")}
+                onChange={(event) => onRequestChange({ ...request, llm_api_key: event.target.value })}
+              />
+            </label>
+            <label>
+              {copyText(copy, "console", "llmModel", "LLM model")}
+              <input
+                value={request.llm_model}
+                placeholder="gpt-4.1-mini"
+                onChange={(event) => onRequestChange({ ...request, llm_model: event.target.value })}
+              />
+            </label>
+            <label>
+              {copyText(copy, "console", "llmBaseUrl", "OpenAI-compatible base URL")}
+              <input
+                value={request.llm_base_url}
+                placeholder="https://api.openai.com/v1"
+                onChange={(event) => onRequestChange({ ...request, llm_base_url: event.target.value })}
+              />
+            </label>
+            <p>{copyText(copy, "console", "llmKeyNote", "The key is sent only with the run request and is not returned in reports or stored in run results.")}</p>
+          </div>
+          <div className="wide upload-panel">
+            <label>
+              {copyText(copy, "console", "uploadLibrary", "Paste SMILES library")}
+              <textarea
+                value={uploadText}
+                placeholder={copyText(copy, "console", "uploadPlaceholder", "One SMILES per line, optionally: SMILES,name")}
+                onChange={(event) => setUploadText(event.target.value)}
+              />
+            </label>
+            <button className="ghost-action" onClick={handleLibraryImport} disabled={uploading || !uploadText.trim()} type="button">
+              {uploading ? <Loader2 className="spin" size={16} /> : <Layers3 size={16} />}
+              {copyText(copy, "console", "importLibrary", "Import pasted library")}
+            </button>
+            {uploadResult && (
+              <span className="upload-result">
+                {uploadResult.compound_count} {copyText(copy, "console", "importedCompounds", "compounds imported")} / {uploadResult.library_id}
+              </span>
+            )}
+          </div>
         </section>
 
         <section className="status-deck">
@@ -555,6 +723,13 @@ function RunConsole({
           {error && <div className="error-box">{error}</div>}
         </section>
       </div>
+      <ExecutionRealityPanel
+        request={request}
+        result={result}
+        runtimeStatus={activeRuntime}
+        copy={copy}
+        onRefresh={refreshRuntimeStatus}
+      />
       <ProfileMatrix profiles={profiles} selectedProfile={request.compute_profile} copy={copy} />
       <TargetScopePanel copy={copy} />
       {seedDrawerOpen && (
@@ -567,6 +742,80 @@ function RunConsole({
         />
       )}
     </section>
+  );
+}
+
+function ExecutionRealityPanel({
+  request,
+  result,
+  runtimeStatus,
+  copy,
+  onRefresh
+}: {
+  request: RunRequest;
+  result: PipelineResult | null;
+  runtimeStatus: RuntimeStatus | null;
+  copy: Copy;
+  onRefresh: () => void;
+}) {
+  const gpu = (result?.compute_profile?.gpu_status as Record<string, unknown> | undefined) ?? runtimeStatus?.gpu ?? {};
+  const llm = runtimeStatus?.llm ?? (result?.compute_profile?.llm_status as Record<string, unknown> | undefined) ?? {};
+  const llmKeyProvided = Boolean(request.llm_api_key.trim());
+  const llmAvailable = truthValue(llm, "configured") || llmKeyProvided;
+  const library = result?.library_report;
+  const evidence = result?.evidence_mode;
+  return (
+    <section className="execution-reality">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">{copyText(copy, "console", "executionReality", "Execution reality")}</p>
+          <h3>{copyText(copy, "console", "runtimeTruth", "Requested, available, and actually used resources")}</h3>
+        </div>
+        <button className="ghost-action" onClick={onRefresh} type="button">
+          <RotateCcw size={15} />
+          {copyText(copy, "console", "refreshRuntime", "Refresh runtime")}
+        </button>
+      </div>
+      <div className="reality-grid">
+        <RealityCard
+          label="GPU"
+          value={truthValue(gpu, "used") ? copyText(copy, "console", "used", "used") : truthValue(gpu, "available") ? copyText(copy, "console", "available", "available") : copyText(copy, "console", "fallback", "fallback")}
+          detail={[
+            `${copyText(copy, "console", "requested", "requested")}: ${request.use_gpu || request.compute_profile.includes("gpu") || request.compute_profile === "full-research" ? copy.profiles.on : copy.profiles.off}`,
+            `${copyText(copy, "console", "device", "device")}: ${String(gpu.device_name ?? gpu.backend ?? "unknown")}`,
+            String(gpu.fallback_reason ?? gpu.message ?? "")
+          ].filter(Boolean).join(" / ")}
+        />
+        <RealityCard
+          label="LLM"
+          value={truthValue(llm, "used") ? copyText(copy, "console", "used", "used") : llmAvailable ? copyText(copy, "console", "available", "available") : copyText(copy, "console", "fallback", "fallback")}
+          detail={[
+            `${copyText(copy, "console", "requested", "requested")}: ${request.use_llm || request.compute_profile === "api-assisted" || request.compute_profile === "full-research" ? copy.profiles.on : copy.profiles.off}`,
+            llmKeyProvided ? copyText(copy, "console", "llmKeyProvided", "API key provided in the run form.") : String(llm.message ?? "OPENAI_API_KEY status unknown.")
+          ].join(" / ")}
+        />
+        <RealityCard
+          label={copy.console.evidenceMode}
+          value={evidence?.label ?? evidenceModeLabel(result, request, copy)}
+          detail={evidence?.interpretation ?? copyText(copy, "console", "publicApiNoKey", "Public evidence APIs do not require a user-provided key; API failures fall back to cache or demo evidence.")}
+        />
+        <RealityCard
+          label={copyText(copy, "console", "libraryScale", "Library scale")}
+          value={`${formatInteger(library?.valid_unique_count)} ${copyText(copy, "console", "uniqueCompounds", "unique compounds")}`}
+          detail={`${formatInteger(library?.detailed_evaluation_count)} ${copyText(copy, "console", "detailedEvaluated", "detailed evaluated")} / ${formatInteger(library?.display_asset_count)} ${copyText(copy, "console", "rendered", "rendered")}`}
+        />
+      </div>
+    </section>
+  );
+}
+
+function RealityCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <article className="reality-card">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <p>{detail}</p>
+    </article>
   );
 }
 
@@ -753,6 +1002,26 @@ function MoleculePreview({ preset, copy }: { preset: SeedPreset; copy: Copy }) {
   );
 }
 
+function LazyStructureImage({ candidate, fallback }: { candidate: Candidate; fallback: string }) {
+  const [structure, setStructure] = useState(candidate.structure_svg);
+  useEffect(() => {
+    setStructure(candidate.structure_svg);
+    if (candidate.structure_svg || !candidate.smiles) return;
+    let cancelled = false;
+    fetchDepiction(candidate.smiles)
+      .then((payload) => {
+        if (!cancelled) setStructure(payload.structure_svg);
+      })
+      .catch(() => {
+        if (!cancelled) setStructure(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [candidate.candidate_id, candidate.smiles, candidate.structure_svg]);
+  return structure ? <img src={structure} alt="" /> : <i>{fallback}</i>;
+}
+
 function MoleculeAtlas({
   result,
   selectedId,
@@ -769,8 +1038,48 @@ function MoleculeAtlas({
   onOpenKnown: () => void;
 }) {
   const candidates = result?.candidates ?? [];
-  const visibleCandidates = candidates.slice(0, 96);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [sortMode, setSortMode] = useState("rank");
+  const [page, setPage] = useState(0);
+  const [candidatePage, setCandidatePage] = useState<CandidatePage | null>(null);
+  const pageSize = 48;
   const heroCandidate = candidates[0];
+  const sourceOptions = ["all", ...Array.from(new Set(candidates.map((candidate) => candidate.library_source || candidate.source))).sort()];
+  const visibleCandidates = candidatePage?.items ?? candidates.slice(page * pageSize, page * pageSize + pageSize);
+  const totalCandidates = candidatePage?.total ?? candidates.length;
+
+  useEffect(() => {
+    if (!result?.run_id) {
+      setCandidatePage(null);
+      return;
+    }
+    let cancelled = false;
+    fetchCandidates(result.run_id, {
+      limit: pageSize,
+      offset: page * pageSize,
+      status: statusFilter,
+      source: sourceFilter,
+      sort: sortMode
+    })
+      .then((payload) => {
+        if (!cancelled) setCandidatePage(payload);
+      })
+      .catch(() => {
+        if (!cancelled) setCandidatePage(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [result?.run_id, page, statusFilter, sourceFilter, sortMode]);
+
+  function updateFilter(next: { status?: string; source?: string; sort?: string }) {
+    if (next.status !== undefined) setStatusFilter(next.status);
+    if (next.source !== undefined) setSourceFilter(next.source);
+    if (next.sort !== undefined) setSortMode(next.sort);
+    setPage(0);
+  }
+
   return (
     <section className="view-frame atlas-view">
       <div className="section-header">
@@ -804,8 +1113,25 @@ function MoleculeAtlas({
           <div className="panel-heading">
             <div>
               <p className="eyebrow">{copy.atlas.generated}</p>
-              <h3>{visibleCandidates.length || 0} {copy.atlas.shown} / {candidates.length || 0} {copy.atlas.scored}</h3>
+              <h3>{visibleCandidates.length || 0} {copy.atlas.shown} / {totalCandidates || 0} {copy.atlas.scored}</h3>
             </div>
+          </div>
+          <div className="atlas-filters">
+            <select value={statusFilter} onChange={(event) => updateFilter({ status: event.target.value })}>
+              <option value="all">{copy.graph.all}</option>
+              {STATUS_ORDER.map((status) => <option key={status} value={status}>{statusLabel(status, copy)}</option>)}
+            </select>
+            <select value={sourceFilter} onChange={(event) => updateFilter({ source: event.target.value })}>
+              {sourceOptions.map((source) => (
+                <option key={source} value={source}>{source === "all" ? copy.graph.all : librarySourceLabel(source, copy)}</option>
+              ))}
+            </select>
+            <select value={sortMode} onChange={(event) => updateFilter({ sort: event.target.value })}>
+              <option value="rank">{copyText(copy, "atlas", "sortRank", "Ranked order")}</option>
+              <option value="activity">{copyText(copy, "atlas", "sortActivity", "Predicted activity")}</option>
+              <option value="applicability">{copyText(copy, "atlas", "sortApplicability", "Applicability")}</option>
+              <option value="qed">{copyText(copy, "atlas", "sortQed", "QED")}</option>
+            </select>
           </div>
           {candidates.length === 0 ? (
             <EmptyPanel icon={<Search />} title={copy.atlas.emptyTitle} text={copy.atlas.emptyText} />
@@ -822,15 +1148,26 @@ function MoleculeAtlas({
                     {statusLabel(candidate.decision?.final_status ?? "Unscored", copy)}
                   </span>
                   <span className="molecule-thumb">
-                    {candidate.structure_svg ? <img src={candidate.structure_svg} alt="" /> : <i>{copy.atlas.noStructure}</i>}
+                    <LazyStructureImage candidate={candidate} fallback={copy.atlas.noStructure} />
                   </span>
                   <strong>{candidate.candidate_id}</strong>
                   <small>{copy.atlas.lowerPchembl} {formatNumber(candidate.prediction_interval?.lower, 2)}</small>
-                  <small>AD {formatNumber(candidate.applicability_score, 2)} / {candidate.source.replaceAll("_", " ")}</small>
+                  <small>AD {formatNumber(candidate.applicability_score, 2)} / {librarySourceLabel(candidate.library_source || candidate.source, copy)}</small>
                 </button>
             ))}
           </div>
           )}
+          <div className="pager-row">
+            <button className="ghost-action" onClick={() => setPage((value) => Math.max(0, value - 1))} disabled={page === 0} type="button">
+              <ArrowLeft size={15} />
+              {copyText(copy, "atlas", "prevPage", "Previous")}
+            </button>
+            <span>{page + 1} / {Math.max(1, Math.ceil(totalCandidates / pageSize))}</span>
+            <button className="ghost-action" onClick={() => setPage((value) => value + 1)} disabled={(page + 1) * pageSize >= totalCandidates} type="button">
+              {copyText(copy, "atlas", "nextPage", "Next")}
+              <ArrowRight size={15} />
+            </button>
+          </div>
         </section>
 
         <section>
@@ -885,6 +1222,28 @@ function CandidateTwin({
   onMoleculeViewChange: (view: MoleculeView) => void;
   onOpenGraph: () => void;
 }) {
+  const [lazyConformer, setLazyConformer] = useState<ConformerPayload | null>(null);
+  const [conformerLoading, setConformerLoading] = useState(false);
+  useEffect(() => {
+    setLazyConformer(null);
+    if (!candidate || moleculeView !== "3d" || !result?.run_id || candidate.conformer) return;
+    let cancelled = false;
+    setConformerLoading(true);
+    fetchConformer(result.run_id, candidate.candidate_id)
+      .then((payload) => {
+        if (!cancelled) setLazyConformer(payload);
+      })
+      .catch(() => {
+        if (!cancelled) setLazyConformer(null);
+      })
+      .finally(() => {
+        if (!cancelled) setConformerLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [candidate?.candidate_id, candidate?.conformer, moleculeView, result?.run_id]);
+
   if (!candidate) {
     return (
       <section className="view-frame">
@@ -919,7 +1278,12 @@ function CandidateTwin({
               {candidate.structure_svg ? <img src={candidate.structure_svg} alt={`${candidate.candidate_id} 2D structure`} /> : <span>{copy.twin.no2d}</span>}
             </div>
           ) : (
-            <InteractiveConformerView conformer={candidate.conformer} candidateId={candidate.candidate_id} copy={copy} />
+            <InteractiveConformerView
+              conformer={candidate.conformer ?? lazyConformer}
+              candidateId={candidate.candidate_id}
+              copy={copy}
+              loading={conformerLoading}
+            />
           )}
           <p className="viewer-warning">
             {copy.twin.viewerWarning}
@@ -997,11 +1361,29 @@ function CandidateTwin({
   );
 }
 
-function InteractiveConformerView({ conformer, candidateId, copy }: { conformer: ConformerPayload | null; candidateId: string; copy: Copy }) {
+function InteractiveConformerView({
+  conformer,
+  candidateId,
+  copy,
+  loading = false
+}: {
+  conformer: ConformerPayload | null;
+  candidateId: string;
+  copy: Copy;
+  loading?: boolean;
+}) {
   const [angle, setAngle] = useState(22);
   const [zoom, setZoom] = useState(1);
   const atoms = (conformer?.atoms ?? []).slice(0, 64);
   const bonds = (conformer?.bonds ?? []).slice(0, 90);
+  if (loading) {
+    return (
+      <div className="conformer-stage unavailable">
+        <Loader2 className="spin" size={22} />
+        <span>{copyText(copy, "conformer", "loading", "Computing conformer")}</span>
+      </div>
+    );
+  }
   if (!conformer?.available || atoms.length === 0) {
     return (
       <div className="conformer-stage unavailable">
@@ -1340,6 +1722,24 @@ function Reports({ result, copy, locale }: { result: PipelineResult | null; copy
           </div>
         </section>
         <section className="report-panel">
+          <h3>{copyText(copy, "reports", "libraryScreening", "Library-scale screening")}</h3>
+          <dl className="model-dl">
+            <dt>{copyText(copy, "reports", "rawInput", "Raw input")}</dt>
+            <dd>{formatInteger(result?.library_report?.raw_input_count)}</dd>
+            <dt>{copyText(copy, "reports", "validUnique", "Valid unique")}</dt>
+            <dd>{formatInteger(result?.library_report?.valid_unique_count)}</dd>
+            <dt>{copyText(copy, "reports", "detailedEvaluation", "Detailed evaluation")}</dt>
+            <dd>{formatInteger(result?.library_report?.detailed_evaluation_count)}</dd>
+            <dt>{copyText(copy, "reports", "renderedStructures", "Rendered structures")}</dt>
+            <dd>{formatInteger(result?.library_report?.display_asset_count)}</dd>
+          </dl>
+          <div className="metric-list">
+            {(result?.screening_stages ?? []).map((stage) => (
+              <span key={stage.stage}>{stage.stage}: {stage.count}</span>
+            ))}
+          </div>
+        </section>
+        <section className="report-panel">
           <h3>{copy.reports.thresholdRegistry}</h3>
           <div className="threshold-list">
             {Object.entries(result?.threshold_registry?.rules ?? {}).slice(0, 8).map(([id, rule]) => (
@@ -1553,6 +1953,60 @@ function statusClass(status: Status | string) {
 function formatNumber(value: number | null | undefined, digits = 2) {
   if (typeof value !== "number" || Number.isNaN(value)) return "-";
   return value.toFixed(digits);
+}
+
+function formatInteger(value: number | null | undefined) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "-";
+  return Math.round(value).toLocaleString();
+}
+
+function truthValue(record: Record<string, unknown>, key: string) {
+  return record[key] === true;
+}
+
+function copyText(copy: Copy, section: string, key: string, fallback: string) {
+  const sectionMap = (copy as unknown as Record<string, Record<string, unknown>>)[section] ?? {};
+  const value = sectionMap[key];
+  return typeof value === "string" ? value : fallback;
+}
+
+function librarySourceLabel(source: string, copy: Copy) {
+  const labels = (copy as unknown as { librarySources?: Record<string, string> }).librarySources ?? {};
+  return labels[source] ?? source.replaceAll("_", " ");
+}
+
+function profileRequestDefaults(profileId: string): Partial<RunRequest> {
+  if (profileId === "cpu-demo") {
+    return {
+      allow_network: false,
+      use_gpu: false,
+      use_llm: false,
+      library_sources: ["seed_analog"],
+      library_limit: 500,
+      detailed_eval_limit: 96,
+      display_limit: 72,
+      conformer_limit: 12
+    };
+  }
+  if (profileId === "cpu-evidence") {
+    return { allow_network: true, use_gpu: false, use_llm: false, library_sources: ["seed_analog", "chembl_target", "pubchem_reference"] };
+  }
+  if (profileId === "gpu-accelerated") {
+    return { allow_network: true, use_gpu: true, use_llm: false, library_sources: ["seed_analog", "chembl_target", "pubchem_reference"] };
+  }
+  if (profileId === "api-assisted") {
+    return { allow_network: true, use_gpu: false, use_llm: true, library_sources: ["seed_analog", "chembl_target", "pubchem_reference"] };
+  }
+  return {
+    allow_network: true,
+    use_gpu: true,
+    use_llm: true,
+    library_sources: ["seed_analog", "chembl_target", "pubchem_reference"],
+    library_limit: 2000,
+    detailed_eval_limit: 300,
+    display_limit: 96,
+    conformer_limit: 24
+  };
 }
 
 function profileLabel(profiles: Array<Record<string, unknown>>, id: string, copy: Copy) {

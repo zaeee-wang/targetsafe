@@ -12,11 +12,18 @@ from targetsafe.thresholds import ThresholdRegistry
 
 
 class LLMClient:
-    def __init__(self, enabled: bool = False) -> None:
-        self.enabled = enabled and bool(os.getenv("OPENAI_API_KEY"))
-        self.base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-        self.model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
-        self.api_key = os.getenv("OPENAI_API_KEY", "")
+    def __init__(
+        self,
+        enabled: bool = False,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        model: str | None = None,
+    ) -> None:
+        self.requested = enabled
+        self.api_key = (api_key or os.getenv("OPENAI_API_KEY") or "").strip()
+        self.enabled = enabled and bool(self.api_key)
+        self.base_url = (base_url or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")).rstrip("/")
+        self.model = model or os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
     def chat(self, system: str, user: str) -> str | None:
         if not self.enabled:
@@ -36,7 +43,7 @@ class LLMClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
+            with urllib.request.urlopen(request, timeout=12) as response:
                 data = json.loads(response.read().decode("utf-8"))
             return data["choices"][0]["message"]["content"]
         except Exception:

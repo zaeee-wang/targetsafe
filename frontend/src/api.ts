@@ -1,4 +1,17 @@
-import type { AgentEvent, KnownContext, PipelineResult, RedesignReport, ReferenceDrug, RunRequest, StructureDepiction, ValidationReport } from "./types";
+import type {
+  AgentEvent,
+  CandidatePage,
+  ConformerPayload,
+  KnownContext,
+  LibraryImportResult,
+  PipelineResult,
+  RedesignReport,
+  ReferenceDrug,
+  RunRequest,
+  RuntimeStatus,
+  StructureDepiction,
+  ValidationReport
+} from "./types";
 
 const API_BASE = import.meta.env.VITE_TARGETSAFE_API ?? "";
 
@@ -23,6 +36,14 @@ export async function fetchProfiles(): Promise<Array<Record<string, unknown>>> {
   return response.json();
 }
 
+export async function fetchRuntimeStatus(): Promise<RuntimeStatus> {
+  const response = await fetch(`${API_BASE}/api/runtime-status`);
+  if (!response.ok) {
+    throw new Error("Unable to load runtime status.");
+  }
+  return response.json();
+}
+
 export async function fetchReferenceDrugs(): Promise<ReferenceDrug[]> {
   const response = await fetch(`${API_BASE}/api/reference-drugs`);
   if (!response.ok) {
@@ -35,6 +56,44 @@ export async function fetchKnownContext(runId: string, candidateId: string): Pro
   const response = await fetch(`${API_BASE}/api/runs/${runId}/candidates/${candidateId}/known-context`);
   if (!response.ok) {
     throw new Error("Unable to load candidate known-drug context.");
+  }
+  return response.json();
+}
+
+export async function fetchCandidates(
+  runId: string,
+  options: { limit: number; offset: number; status?: string; source?: string; sort?: string }
+): Promise<CandidatePage> {
+  const params = new URLSearchParams({
+    limit: String(options.limit),
+    offset: String(options.offset),
+    status: options.status ?? "all",
+    source: options.source ?? "all",
+    sort: options.sort ?? "rank"
+  });
+  const response = await fetch(`${API_BASE}/api/runs/${runId}/candidates?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error("Unable to load candidate page.");
+  }
+  return response.json();
+}
+
+export async function fetchConformer(runId: string, candidateId: string): Promise<ConformerPayload> {
+  const response = await fetch(`${API_BASE}/api/runs/${runId}/candidates/${candidateId}/conformer`);
+  if (!response.ok) {
+    throw new Error("Unable to load conformer.");
+  }
+  return response.json();
+}
+
+export async function importLibrary(name: string, text: string): Promise<LibraryImportResult> {
+  const response = await fetch(`${API_BASE}/api/library/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, text })
+  });
+  if (!response.ok) {
+    throw new Error("Unable to import library.");
   }
   return response.json();
 }

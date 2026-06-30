@@ -516,6 +516,13 @@ label,
   line-height: 1.65;
 }
 
+.run-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
 .console-grid {
   display: grid;
   grid-template-columns: minmax(360px, 1.05fr) minmax(340px, 0.95fr);
@@ -819,6 +826,57 @@ label,
   width: 140px;
 }
 
+.library-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.library-source-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.api-key-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(160px, 0.7fr) minmax(220px, 1fr);
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.api-key-panel p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.upload-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.upload-panel textarea {
+  min-height: 110px;
+}
+
+.upload-result {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .toggle {
   min-height: 44px;
   display: inline-flex;
@@ -868,6 +926,50 @@ label,
 .status-deck {
   display: grid;
   grid-template-columns: 1fr 1fr;
+}
+
+.execution-reality {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-bg-deep);
+}
+
+.reality-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.reality-card {
+  min-height: 150px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 18px;
+  background: var(--surface-bg);
+}
+
+.reality-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.reality-card strong {
+  font-size: 22px;
+}
+
+.reality-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .metric {
@@ -1027,6 +1129,30 @@ label,
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 14px;
+}
+
+.atlas-filters,
+.pager-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.atlas-filters select {
+  min-width: 160px;
+  width: auto;
+}
+
+.pager-row {
+  justify-content: space-between;
+  margin-top: 18px;
+}
+
+.pager-row span {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .molecule-card {
@@ -1709,6 +1835,7 @@ label,
   .twin-stage-grid,
   .known-grid,
   .target-scope-panel,
+  .reality-grid,
   .reports-grid {
     grid-template-columns: 1fr;
   }
@@ -1758,6 +1885,9 @@ label,
 
   .input-deck,
   .status-deck,
+  .library-controls,
+  .upload-panel,
+  .api-key-panel,
   .criteria-grid,
   .twin-detail-grid,
   .known-drug-card,

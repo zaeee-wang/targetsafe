@@ -32,19 +32,41 @@ export const COPY = {
     },
     console: {
       eyebrow: "Run Console",
-      heading: "Start with the smallest stable run, then inspect evidence by section.",
-      body: "This app narrows early EGFR lead candidates with descriptors, model uncertainty, graph evidence, and known-drug context. It does not claim candidate safety or clinical efficacy.",
+      heading: "Run Full research by default, then inspect the evidence lane by lane.",
+      body: "This app screens a larger compound library through staged validity, deduplication, descriptor, QSAR, evidence, and critic checks. It does not claim candidate safety or clinical efficacy.",
       runDemo: "Run CPU demo",
+      runSelected: "Run {profile}",
+      stableDemo: "Stable CPU demo",
       disease: "Disease",
       target: "Target",
       seed: "Seed SMILES",
       goal: "Optimization goal",
       candidates: "Candidates",
+      libraryLimit: "Library limit",
+      detailedEvalLimit: "Detailed eval limit",
+      displayLimit: "Rendered structures",
+      uploadLibrary: "Paste SMILES library",
+      uploadPlaceholder: "One SMILES per line, optionally: SMILES,name",
+      importLibrary: "Import pasted library",
+      importedCompounds: "compounds imported",
       liveApis: "Live APIs",
       gpu: "GPU",
       llm: "LLM",
       computeProfile: "Compute profile",
       evidenceMode: "Evidence mode",
+      executionReality: "Execution reality",
+      runtimeTruth: "Requested, available, and actually used resources",
+      refreshRuntime: "Refresh runtime",
+      requested: "requested",
+      device: "device",
+      used: "used",
+      available: "available",
+      fallback: "fallback",
+      publicApiNoKey: "Public evidence APIs do not require a user-provided key; API failures fall back to cache or demo evidence.",
+      libraryScale: "Library scale",
+      uniqueCompounds: "unique compounds",
+      detailedEvaluated: "detailed evaluated",
+      rendered: "rendered",
       liveEnabled: "Live APIs enabled",
       cachedDemo: "Cached/fallback demo",
       evidenceGraph: "Evidence graph",
@@ -142,7 +164,13 @@ export const COPY = {
       lowerPchembl: "lower pChEMBL",
       reference: "Reference library",
       knownDrugs: "Known and public drugs",
-      noFigure: "No figure"
+      noFigure: "No figure",
+      sortRank: "Ranked order",
+      sortActivity: "Predicted activity",
+      sortApplicability: "Applicability",
+      sortQed: "QED",
+      prevPage: "Previous",
+      nextPage: "Next"
     },
     twin: {
       emptyTitle: "No candidate twin yet",
@@ -182,6 +210,7 @@ export const COPY = {
       zoomIn: "Zoom in",
       zoomOut: "Zoom out",
       reset: "Reset view",
+      loading: "Computing conformer",
       exportXyz: "Export XYZ for PyMOL / Avogadro",
       xyzComment: "computed conformer from Target-SAFE; not a validated binding pose.",
       aria: "Interactive computed conformer"
@@ -228,6 +257,11 @@ export const COPY = {
       metrics: "Metrics",
       redesignReport: "Critic redesign loop",
       redesignChildren: "child suggestions",
+      libraryScreening: "Library-scale screening",
+      rawInput: "Raw input",
+      validUnique: "Valid unique",
+      detailedEvaluation: "Detailed evaluation",
+      renderedStructures: "Rendered structures",
       model: "Model",
       trainingSize: "Training size",
       applicability: "Applicability",
@@ -262,6 +296,14 @@ export const COPY = {
       pass: "pass",
       review: "review",
       block: "block"
+    },
+    librarySources: {
+      seed_analog: "Seed analogs",
+      chembl_target: "ChEMBL target",
+      pubchem_reference: "PubChem/reference",
+      uploaded: "Uploaded",
+      critic_redesign: "Critic redesign",
+      control: "Control"
     }
   },
   ko: {
@@ -524,6 +566,14 @@ export const COPY = {
       pass: "통과",
       review: "검토",
       block: "차단"
+    },
+    librarySources: {
+      seed_analog: "Seed analog",
+      chembl_target: "ChEMBL target",
+      pubchem_reference: "PubChem/reference",
+      uploaded: "Uploaded",
+      critic_redesign: "Critic redesign",
+      control: "Control"
     }
   }
 } as const;

@@ -8,10 +8,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from targetsafe.chem import evaluate_smiles, mol_svg_data_uri
+from targetsafe.chem import evaluate_smiles, mol_conformer_payload, mol_svg_data_uri
 from targetsafe.compute_profiles import profile_options
+from targetsafe.library import DEFAULT_LIBRARY_SOURCES, parse_uploaded_smiles_text
 from targetsafe.pipeline import PipelineConfig, run_pipeline
 from targetsafe.reference_drugs import known_context_for_smiles, reference_drug, reference_drugs
+from targetsafe.runtime import runtime_status
 
 
 DEFAULT_DISEASE = "EGFR mutation-positive NSCLC"
@@ -25,12 +27,28 @@ class RunRequest(BaseModel):
     target: str = Field(default=DEFAULT_TARGET)
     seed_smiles: str = Field(default=DEFAULT_SEED)
     optimization_goal: str = Field(default=DEFAULT_GOAL)
-    candidate_count: int = Field(default=160, ge=20, le=500)
-    compute_profile: str = Field(default="cpu-demo")
-    allow_network: bool = False
-    use_llm: bool = False
-    use_gpu: bool = False
+    candidate_count: int = Field(default=96, ge=20, le=10000)
+    compute_profile: str = Field(default="full-research")
+    allow_network: bool = True
+    use_llm: bool = True
+    use_gpu: bool = True
     enable_conformers: bool = True
+    library_sources: list[str] = Field(default_factory=lambda: list(DEFAULT_LIBRARY_SOURCES))
+    library_limit: int = Field(default=2000, ge=20, le=10000)
+    detailed_eval_limit: int = Field(default=300, ge=20, le=2000)
+    display_limit: int = Field(default=96, ge=10, le=500)
+    conformer_limit: int = Field(default=24, ge=0, le=200)
+    uploaded_smiles: list[str] = Field(default_factory=list)
+    uploaded_library_id: str | None = None
+    llm_api_key: str = Field(default="", max_length=4000)
+    llm_base_url: str = Field(default="", max_length=400)
+    llm_model: str = Field(default="", max_length=120)
+
+
+class LibraryImportRequest(BaseModel):
+    name: str = Field(default="Uploaded compound library")
+    text: str = Field(default="")
+    smiles: list[str] = Field(default_factory=list)
 
 
 app = FastAPI(
@@ -47,6 +65,7 @@ app.add_middleware(
 )
 
 _RUNS: dict[str, dict[str, Any]] = {}
+_UPLOADED_LIBRARIES: dict[str, dict[str, Any]] = {}
 
 
 @app.get("/api/health")
@@ -57,6 +76,34 @@ def health() -> dict[str, str]:
 @app.get("/api/compute-profiles")
 def compute_profiles() -> list[dict[str, Any]]:
     return profile_options()
+
+
+@app.get("/api/runtime-status")
+def get_runtime_status() -> dict[str, Any]:
+    return runtime_status(requested_gpu=True, requested_llm=True)
+
+
+@app.get("/api/library/sources")
+def get_library_sources() -> list[dict[str, Any]]:
+    return [
+        {"id": "seed_analog", "label": "Seed analog library", "requires_network": False},
+        {"id": "chembl_target", "label": "ChEMBL target activity rows", "requires_network": True},
+        {"id": "pubchem_reference", "label": "PubChem/reference drug structures", "requires_network": True},
+        {"id": "uploaded", "label": "Uploaded/pasted SMILES library", "requires_network": False},
+    ]
+
+
+@app.post("/api/library/import")
+def import_library(request: LibraryImportRequest) -> dict[str, Any]:
+    rows = [*parse_uploaded_smiles_text(request.text), *[item.strip() for item in request.smiles if item.strip()]]
+    library_id = f"uploaded_{len(_UPLOADED_LIBRARIES) + 1:04d}"
+    _UPLOADED_LIBRARIES[library_id] = {"name": request.name, "smiles": rows}
+    return {
+        "library_id": library_id,
+        "name": request.name,
+        "compound_count": len(rows),
+        "message": "Imported into the current API process; include uploaded library source in the next run.",
+    }
 
 
 @app.get("/api/reference-drugs")
@@ -89,6 +136,12 @@ def depict_smiles(smiles: str = Query(..., min_length=1, max_length=1200)) -> di
 
 @app.post("/api/runs")
 def create_run(request: RunRequest) -> dict[str, Any]:
+    uploaded_smiles = list(request.uploaded_smiles)
+    if request.uploaded_library_id and request.uploaded_library_id in _UPLOADED_LIBRARIES:
+        uploaded_smiles.extend(_UPLOADED_LIBRARIES[request.uploaded_library_id].get("smiles", []))
+    library_sources = list(request.library_sources)
+    if uploaded_smiles and "uploaded" not in library_sources:
+        library_sources.append("uploaded")
     result = run_pipeline(
         PipelineConfig(
             disease=request.disease,
@@ -101,6 +154,15 @@ def create_run(request: RunRequest) -> dict[str, Any]:
             use_llm=request.use_llm,
             use_gpu=request.use_gpu,
             enable_conformers=request.enable_conformers,
+            library_sources=library_sources,
+            library_limit=request.library_limit,
+            detailed_eval_limit=request.detailed_eval_limit,
+            display_limit=request.display_limit,
+            conformer_limit=request.conformer_limit,
+            uploaded_smiles=uploaded_smiles,
+            llm_api_key=request.llm_api_key,
+            llm_base_url=request.llm_base_url,
+            llm_model=request.llm_model,
             output_dir=Path("outputs"),
         )
     )
@@ -139,6 +201,70 @@ def get_validation(run_id: str) -> dict[str, Any]:
 def get_redesign_report(run_id: str) -> dict[str, Any]:
     payload = get_run(run_id)
     return payload.get("redesign_report", {})
+
+
+@app.get("/api/runs/{run_id}/library-report")
+def get_library_report(run_id: str) -> dict[str, Any]:
+    payload = get_run(run_id)
+    return payload.get("library_report", {})
+
+
+@app.get("/api/runs/{run_id}/candidates")
+def get_candidates(
+    run_id: str,
+    limit: int = Query(default=96, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    status: str = Query(default="all"),
+    source: str = Query(default="all"),
+    sort: str = Query(default="rank"),
+) -> dict[str, Any]:
+    payload = get_run(run_id)
+    candidates = list(payload.get("candidates", []))
+    if status != "all":
+        candidates = [
+            candidate
+            for candidate in candidates
+            if (candidate.get("decision") or {}).get("final_status") == status
+        ]
+    if source != "all":
+        candidates = [
+            candidate
+            for candidate in candidates
+            if candidate.get("library_source") == source or candidate.get("source") == source
+        ]
+    if sort == "activity":
+        candidates.sort(key=lambda item: item.get("predicted_activity") or -999, reverse=True)
+    elif sort == "applicability":
+        candidates.sort(key=lambda item: item.get("applicability_score") or 0, reverse=True)
+    elif sort == "qed":
+        candidates.sort(key=lambda item: ((item.get("descriptors") or {}).get("qed") or 0), reverse=True)
+    total = len(candidates)
+    return {
+        "run_id": run_id,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "items": candidates[offset : offset + limit],
+    }
+
+
+@app.get("/api/runs/{run_id}/candidates/{candidate_id}/conformer")
+def get_candidate_conformer(run_id: str, candidate_id: str) -> dict[str, Any]:
+    payload = get_run(run_id)
+    candidates = payload.get("candidates", [])
+    for candidate in candidates:
+        if candidate.get("candidate_id") != candidate_id:
+            continue
+        if candidate.get("conformer"):
+            return candidate["conformer"]
+        smiles = str(candidate.get("smiles", ""))
+        descriptor = evaluate_smiles(smiles)
+        if not descriptor.valid:
+            raise HTTPException(status_code=422, detail="Candidate has invalid SMILES.")
+        conformer = mol_conformer_payload(smiles)
+        candidate["conformer"] = conformer
+        return conformer or {"available": False, "label": "computed conformer unavailable", "message": "No conformer payload returned.", "atoms": [], "bonds": []}
+    raise HTTPException(status_code=404, detail="Candidate not found in current API process.")
 
 
 @app.get("/api/runs/{run_id}/candidates/{candidate_id}/known-context")

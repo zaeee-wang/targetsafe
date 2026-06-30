@@ -26,6 +26,10 @@ After:
 - EGFR QSAR validation now writes explicit validation outputs or `insufficient_data` when rows are not enough.
 - Evidence mode is surfaced as offline fallback, live, cached, mixed, or error fallback.
 - Compute profiles make CPU/GPU/API tradeoffs explicit.
+- Full research is the default profile, but runtime status separates requested, available, used, and fallback resources.
+- A Run Console API-key field allows OpenAI-compatible LLM use without returning secrets in reports or run payloads.
+- Library-scale staged triage adds seed analog, ChEMBL target, PubChem/reference, and uploaded SMILES sources.
+- HTML reports now start with an executive summary before raw technical appendices.
 - React provides the main judging interface; Streamlit remains as fallback.
 
 ## 3. 최종 시스템 개요
@@ -71,6 +75,8 @@ Key modules:
 - `targetsafe/api.py`: FastAPI entrypoint.
 - `targetsafe/pipeline.py`: end-to-end orchestration.
 - `targetsafe/compute_profiles.py`: CPU/GPU/API execution profiles.
+- `targetsafe/runtime.py`: GPU, LLM, and public API runtime status without exposing secrets.
+- `targetsafe/library.py`: library assembly, deduplication, diversity-aware detailed subset selection, and screening-stage summaries.
 - `targetsafe/thresholds.py`: sourced threshold registry.
 - `targetsafe/qsar.py`: analog-supported EGFR QSAR, interval, applicability domain, model card.
 - `targetsafe/evidence_graph.py`: GraphRAG-lite evidence graph and molecular twin payload.
@@ -81,21 +87,22 @@ Key modules:
 
 ## 5. 프로그램 파이프라인
 
-1. User selects disease, target, seed SMILES, candidate count, and compute profile.
+1. User selects disease, target, seed SMILES, candidate count, compute profile, library sources, and optional LLM API key.
 2. Planner Agent creates a cautious run plan.
-3. Evidence Agent retrieves ChEMBL, ClinicalTrials.gov, and openFDA evidence or uses fallback data.
-4. Candidate generator creates seed-derived analogs and controls.
-5. RDKit evaluator validates SMILES, computes descriptors, creates 2D SVG, and optionally creates a computed conformer.
-6. QSAR module estimates pChEMBL mean/lower/upper interval, applicability domain, and nearest analogs.
-7. Optional GPU profile adds GPU detection and analog retrieval metadata, falling back safely if unavailable.
-8. Decision module applies threshold-sourced hard gates and uncertainty-aware triage.
-9. Critic Agent downgrades unsupported Go calls and records cautionary findings.
-10. Redesign Agent converts eligible critic findings into constrained EGFR reference/template child candidates.
-11. Child candidates are re-evaluated with the same descriptor, QSAR, threshold, and critic logic.
-12. Validation Agent runs EGFR QSAR validation when enough rows exist or reports `insufficient_data`.
-13. Evidence graph connects candidate, descriptor, prediction, analog, threshold, alert, risk, redesign, and decision nodes.
-14. React UI renders the candidate board, molecular twin, conformer view, evidence graph, model card, validation, redesign report, and trace.
-15. Reports and JSON artifacts are written under `outputs/`.
+3. Evidence Agent retrieves ChEMBL, PubChem, ClinicalTrials.gov, and openFDA evidence or uses cache/fallback data.
+4. Library builder assembles seed analogs, EGFR ChEMBL target rows, PubChem/reference records, and optional uploaded SMILES.
+5. Staged triage validates SMILES, deduplicates structures, assigns diversity clusters, and selects a detailed-evaluation subset.
+6. RDKit evaluator computes descriptors for the detailed subset and creates immediate 2D/3D assets only for display-limited candidates.
+7. QSAR module estimates pChEMBL mean/lower/upper interval, applicability domain, and nearest analogs.
+8. Optional GPU lane reports CUDA availability and, when available, runs a CUDA hashed-SMILES similarity matrix for analog retrieval support.
+9. Decision module applies threshold-sourced hard gates and uncertainty-aware triage.
+10. Critic Agent downgrades unsupported Go calls and records cautionary findings.
+11. Redesign Agent converts eligible critic findings into constrained EGFR reference/template child candidates.
+12. Child candidates are re-evaluated with the same descriptor, QSAR, threshold, and critic logic.
+13. Validation Agent runs EGFR QSAR validation when enough rows exist or reports `insufficient_data`.
+14. Evidence graph connects candidate, descriptor, prediction, analog, threshold, alert, risk, redesign, and decision nodes.
+15. React UI renders the paginated candidate browser, molecular twin, lazy conformer view, evidence graph, model card, validation, redesign report, and trace.
+16. User-readable HTML reports and JSON artifacts are written under `outputs/`.
 
 ## 6. Go/Hold/No-Go 의사결정 로직
 
@@ -140,9 +147,11 @@ Compute profiles:
 - `API assisted`: optional LLM summary and hosted service support.
 - `Full research mode`: live evidence, optional GPU, optional LLM graph-grounded report support.
 
-GPU is optional. If GPU is requested but unavailable, the system returns a clear fallback status instead of crashing. The core demo remains CPU-safe.
+GPU is optional. If GPU is requested but unavailable, the system returns a clear fallback status instead of crashing. If CUDA is detected, the run records device name, elapsed time, matrix shape, and `used=true` for the GPU similarity lane. The core demo remains CPU-safe.
 
-LLM is optional. It can improve planning and report language, but final decisions remain tool-grounded and graph-backed.
+LLM is optional. A user can paste an OpenAI-compatible API key in the Run Console, or set `OPENAI_API_KEY` in the backend environment. The key is not returned in report payloads. If no key is available, Planner/Report behavior falls back to deterministic text. Final decisions remain tool-grounded and graph-backed.
+
+Public evidence APIs do not require a user-provided key in this MVP. ChEMBL, PubChem, ClinicalTrials.gov, and openFDA calls are logged as live, cached, fallback, mixed, or error fallback.
 
 ## 8. 결과물 형식
 
@@ -166,6 +175,8 @@ Generated outputs:
 The React UI shows:
 
 - candidate board,
+- library-scale screening summary,
+- runtime status panel for GPU/LLM/API reality,
 - 2D molecular structure,
 - computed conformer view,
 - prediction interval,
@@ -178,7 +189,7 @@ The React UI shows:
 - QSAR validation status and metrics,
 - critic redesign parent/child comparison,
 - model card,
-- HTML report link.
+- user-readable HTML report link.
 
 ## 9. 테스트 및 평가 시나리오
 

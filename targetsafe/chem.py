@@ -50,7 +50,15 @@ def generate_seed_analogs(seed_smiles: str, count: int = 60) -> list[CandidateRe
             break
 
     return [
-        CandidateRecord(candidate_id=f"C{i + 1:03d}", smiles=smi, source="seed_analog_library")
+        CandidateRecord(
+            candidate_id=f"C{i + 1:03d}",
+            smiles=smi,
+            source="seed_analog_library",
+            library_source="seed_analog",
+            source_compound_id=f"seed_analog_{i + 1:03d}",
+            source_name="Seed-derived analog",
+            screening_stage="library_proposed",
+        )
         for i, smi in enumerate(unique)
     ]
 

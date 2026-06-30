@@ -73,6 +73,12 @@ export interface Candidate {
   candidate_id: string;
   smiles: string;
   source: string;
+  library_source: string;
+  source_compound_id: string;
+  source_name: string;
+  diversity_cluster: string;
+  screening_stage: string;
+  prefilter_reason: string;
   parent_candidate_id: string | null;
   generation: number;
   redesign_reason: string;
@@ -182,6 +188,9 @@ export interface PipelineResult {
   redesign_report: RedesignReport;
   validation_report: ValidationReport;
   evidence_mode: EvidenceMode;
+  runtime_status: RuntimeStatus;
+  library_report: LibraryReport;
+  screening_stages: ScreeningStage[];
 }
 
 export interface RunRequest {
@@ -195,6 +204,16 @@ export interface RunRequest {
   use_llm: boolean;
   use_gpu: boolean;
   enable_conformers: boolean;
+  library_sources: string[];
+  library_limit: number;
+  detailed_eval_limit: number;
+  display_limit: number;
+  conformer_limit: number;
+  uploaded_smiles: string[];
+  uploaded_library_id?: string | null;
+  llm_api_key: string;
+  llm_base_url: string;
+  llm_model: string;
 }
 
 export interface ReferenceDrug {
@@ -242,4 +261,51 @@ export interface StructureDepiction {
   qed: number;
   sa_score: number;
   alerts: string[];
+}
+
+export interface RuntimeStatus {
+  schema?: string;
+  gpu?: Record<string, unknown>;
+  llm?: Record<string, unknown>;
+  public_evidence_apis?: Record<string, unknown>;
+}
+
+export interface LibraryReport {
+  schema?: string;
+  library_sources?: string[];
+  source_input_counts?: Record<string, number>;
+  raw_input_count?: number;
+  valid_unique_count?: number;
+  invalid_or_unparseable_count?: number;
+  duplicate_count?: number;
+  library_limit?: number;
+  detailed_eval_limit?: number;
+  detailed_evaluation_count?: number;
+  prefilter_pass_not_detailed_count?: number;
+  diversity_cluster_count?: number;
+  final_candidate_count?: number;
+  display_asset_count?: number;
+  conformer_asset_count?: number;
+  interpretation?: string;
+}
+
+export interface ScreeningStage {
+  stage: string;
+  count: number;
+  description: string;
+}
+
+export interface CandidatePage {
+  run_id: string;
+  total: number;
+  limit: number;
+  offset: number;
+  items: Candidate[];
+}
+
+export interface LibraryImportResult {
+  library_id: string;
+  name: string;
+  compound_count: number;
+  message: string;
 }

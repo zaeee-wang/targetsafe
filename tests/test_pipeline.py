@@ -10,6 +10,7 @@ from targetsafe.models import CandidateRecord, EvidenceBundle
 from targetsafe.pipeline import PipelineConfig, run_pipeline
 from targetsafe.qsar import EvidenceWeightedQSAR
 from targetsafe.reference_drugs import known_context_for_smiles, reference_drugs
+from targetsafe.runtime import runtime_status
 from targetsafe.validation import build_qsar_validation_report
 
 
@@ -19,7 +20,13 @@ class TargetSafePipelineTests(unittest.TestCase):
         result = run_pipeline(
             PipelineConfig(
                 candidate_count=55,
+                compute_profile="cpu-demo",
                 allow_network=False,
+                library_sources=["seed_analog"],
+                library_limit=120,
+                detailed_eval_limit=55,
+                display_limit=24,
+                conformer_limit=6,
                 output_dir=root,
                 cache_path=root / "cache.sqlite",
             )
@@ -34,6 +41,9 @@ class TargetSafePipelineTests(unittest.TestCase):
         self.assertIn("nodes", result.evidence_graph)
         self.assertIn("model_id", result.model_card)
         self.assertEqual(result.evidence_mode["mode"], "offline_fallback")
+        self.assertIn("library_report", result.to_public_dict())
+        self.assertGreaterEqual(result.library_report["valid_unique_count"], 50)
+        self.assertEqual(result.runtime_status["llm"]["used"], False)
         self.assertGreaterEqual(result.redesign_report["created_children"], 1)
         self.assertEqual(result.validation_report["status"], "insufficient_data")
         self.assertTrue(result.agent_events)
@@ -64,14 +74,51 @@ class TargetSafePipelineTests(unittest.TestCase):
         result = run_pipeline(
             PipelineConfig(
                 candidate_count=20,
-                compute_profile="gpu-accelerated",
+                compute_profile="cpu-demo",
+                use_gpu=True,
+                library_sources=["seed_analog"],
+                library_limit=60,
+                detailed_eval_limit=20,
+                display_limit=10,
+                conformer_limit=0,
                 output_dir=root,
                 cache_path=root / "cache.sqlite",
             )
         )
-        self.assertEqual(result.compute_profile["id"], "gpu-accelerated")
+        self.assertEqual(result.compute_profile["id"], "cpu-demo")
+        self.assertTrue(result.compute_profile["effective_use_gpu"])
         self.assertIn("gpu_status", result.compute_profile)
         self.assertTrue(result.candidates)
+        self.assertIn("used", result.compute_profile["gpu_status"])
+
+    def test_runtime_status_reports_llm_key_absence_without_secret(self) -> None:
+        status = runtime_status(requested_gpu=True, requested_llm=True)
+        self.assertIn("gpu", status)
+        self.assertIn("llm", status)
+        self.assertIn("public_evidence_apis", status)
+        self.assertNotIn("api_key", status["llm"])
+        self.assertIn("configured", status["llm"])
+
+    def test_uploaded_library_rows_are_staged_and_reported(self) -> None:
+        root = Path("work") / "test_runs" / uuid.uuid4().hex
+        uploaded = ["CCO ethanol", "CC(=O)O acetic_acid", "not-a-smiles bad_row"]
+        result = run_pipeline(
+            PipelineConfig(
+                compute_profile="cpu-demo",
+                library_sources=["uploaded"],
+                uploaded_smiles=uploaded,
+                library_limit=40,
+                detailed_eval_limit=20,
+                display_limit=10,
+                conformer_limit=0,
+                output_dir=root,
+                cache_path=root / "cache.sqlite",
+            )
+        )
+        self.assertIn("uploaded", result.library_report["library_sources"])
+        self.assertGreaterEqual(result.library_report["raw_input_count"], 3)
+        self.assertGreaterEqual(result.library_report["invalid_or_unparseable_count"], 1)
+        self.assertTrue(result.screening_stages)
 
     def test_reference_drug_library_has_structures_and_risk_context(self) -> None:
         drugs = reference_drugs(include_structures=True)

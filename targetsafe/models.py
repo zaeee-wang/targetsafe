@@ -89,6 +89,12 @@ class CandidateRecord:
     candidate_id: str
     smiles: str
     source: str
+    library_source: str = ""
+    source_compound_id: str = ""
+    source_name: str = ""
+    diversity_cluster: str = ""
+    screening_stage: str = "proposed"
+    prefilter_reason: str = ""
     parent_candidate_id: str | None = None
     generation: int = 0
     redesign_reason: str = ""
@@ -111,6 +117,12 @@ class CandidateRecord:
             "candidate_id": self.candidate_id,
             "smiles": self.smiles,
             "source": self.source,
+            "library_source": self.library_source or self.source,
+            "source_compound_id": self.source_compound_id,
+            "source_name": self.source_name,
+            "diversity_cluster": self.diversity_cluster,
+            "screening_stage": self.screening_stage,
+            "prefilter_reason": self.prefilter_reason,
             "parent_candidate_id": self.parent_candidate_id,
             "generation": self.generation,
             "redesign_reason": self.redesign_reason,
@@ -148,6 +160,9 @@ class PipelineResult:
     redesign_report: dict[str, Any] = field(default_factory=dict)
     validation_report: dict[str, Any] = field(default_factory=dict)
     evidence_mode: dict[str, Any] = field(default_factory=dict)
+    runtime_status: dict[str, Any] = field(default_factory=dict)
+    library_report: dict[str, Any] = field(default_factory=dict)
+    screening_stages: list[dict[str, Any]] = field(default_factory=list)
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
@@ -167,4 +182,7 @@ class PipelineResult:
             "redesign_report": self.redesign_report,
             "validation_report": self.validation_report,
             "evidence_mode": self.evidence_mode,
+            "runtime_status": self.runtime_status,
+            "library_report": self.library_report,
+            "screening_stages": self.screening_stages,
         }

@@ -81,9 +81,9 @@ PROFILES: dict[str, ComputeProfile] = {
 
 def resolve_profile(profile_id: str | None) -> ComputeProfile:
     if not profile_id:
-        return PROFILES["cpu-demo"]
+        return PROFILES["full-research"]
     normalized = profile_id.strip().lower().replace("_", "-")
-    return PROFILES.get(normalized, PROFILES["cpu-demo"])
+    return PROFILES.get(normalized, PROFILES["full-research"])
 
 
 def profile_options() -> list[dict[str, Any]]:

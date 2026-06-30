@@ -4,6 +4,7 @@ from typing import Any
 
 from targetsafe.chem import evaluate_smiles, mol_conformer_payload, mol_svg_data_uri
 from targetsafe.decision import decide_candidate
+from targetsafe.library import diversity_cluster_id
 from targetsafe.models import AgentEvent, CandidateRecord, EvidenceBundle
 from targetsafe.qsar import EvidenceWeightedQSAR
 from targetsafe.reference_drugs import REFERENCE_EGFR_DRUGS
@@ -71,6 +72,11 @@ def run_redesign_iteration(
             candidate_id=f"{parent.candidate_id}_R1",
             smiles=str(template["smiles"]),
             source="critic_redesign_suggestion",
+            library_source="critic_redesign",
+            source_compound_id=str(template.get("chembl_id") or template.get("drug_id") or "critic_template"),
+            source_name=str(template.get("name") or "Curated EGFR template"),
+            diversity_cluster=diversity_cluster_id(str(template["smiles"])),
+            screening_stage="stage3_redesign_re_evaluation",
             parent_candidate_id=parent.candidate_id,
             generation=parent.generation + 1,
             redesign_reason=reason,

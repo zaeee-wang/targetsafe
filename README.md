@@ -13,7 +13,11 @@ The earlier MVP was useful but too close to a rule-based table. This version add
 - Korean/English language switch and dark/light display switch.
 - FastAPI backend.
 - CPU/GPU/API compute profile selector.
+- `Full research mode` is now the default run profile, with a stable CPU demo kept as a fallback action.
+- Optional OpenAI-compatible LLM API key input in the Run Console; the key is sent with the run request and is not returned in reports.
+- Runtime status panel that separates GPU/LLM `requested`, `available`, `used`, and fallback status.
 - Seed molecule drawer for choosing known drugs and control molecules without hand-typing SMILES.
+- Library-scale staged triage across seed analogs, ChEMBL target molecules, PubChem/reference records, and pasted/uploaded SMILES.
 - RDKit 2D structure depiction and interactive computed conformer view.
 - Improved fallback 2D bond-line depiction when RDKit is unavailable.
 - Known EGFR drug reference library plus a broader public drug atlas.
@@ -53,11 +57,11 @@ Main UI sections:
 
 - `Run Console`: configure and start a triage run.
 - `Seed Molecule Drawer`: choose EGFR reference seeds, general drug-like controls, or negative/stress controls with structure previews.
-- `Molecule Atlas`: inspect up to 96 candidate previews and public/reference-drug structures.
+- `Molecule Atlas`: browse candidate pages with source/status/sort filters and lazy 2D structure loading.
 - `Candidate Twin`: inspect one candidate in 2D/3D with decision rationale, critic redesign context, and XYZ export.
 - `Evidence Graph`: zoom and pan through scoped graph-grounded evidence.
 - `Known Drugs & Risks`: review known EGFR TKI structures, label-level risk context, and a broader public drug atlas.
-- `Reports`: evidence mode, scientific validation, model card, threshold registry, agentic trace, redesign report, and HTML report.
+- `Reports`: evidence mode, runtime status, library-scale screening summary, scientific validation, model card, threshold registry, agentic trace, redesign report, and readable HTML report.
 
 ## Backup Streamlit Demo
 
@@ -83,7 +87,9 @@ npm run build
 - `API assisted`: optional LLM/report support.
 - `Full research mode`: live evidence + optional GPU + optional LLM.
 
-GPU and LLM are optional. The core pipeline works without either.
+`Full research mode` requests live evidence, GPU, and LLM lanes by default. The UI distinguishes what was requested from what was actually available and used. GPU status reports torch/CUDA availability, device name when detected, whether the CUDA similarity lane ran, and fallback reason when it did not. LLM support uses an OpenAI-compatible API key from the Run Console or `OPENAI_API_KEY`; without a key, deterministic planner/report fallback is used.
+
+GPU and LLM are optional enhancers. The core pipeline works without either.
 
 ## Outputs
 
@@ -110,14 +116,20 @@ User-facing guide:
 
 - `GET /api/health`
 - `GET /api/compute-profiles`
+- `GET /api/runtime-status`
+- `GET /api/library/sources`
+- `POST /api/library/import`
 - `GET /api/reference-drugs`
 - `GET /api/reference-drugs/{drug_id}`
 - `POST /api/runs`
 - `GET /api/runs/{run_id}`
+- `GET /api/runs/{run_id}/candidates?limit=&offset=&status=&source=&sort=`
 - `GET /api/runs/{run_id}/evidence-graph`
 - `GET /api/runs/{run_id}/agent-trace`
 - `GET /api/runs/{run_id}/validation`
 - `GET /api/runs/{run_id}/redesign-report`
+- `GET /api/runs/{run_id}/library-report`
+- `GET /api/runs/{run_id}/candidates/{candidate_id}/conformer`
 - `GET /api/runs/{run_id}/candidates/{candidate_id}/known-context`
 - `GET /api/runs/{run_id}/report`
 - `GET /api/model-card/egfr`
