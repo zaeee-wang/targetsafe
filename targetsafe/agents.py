@@ -7,7 +7,8 @@ from typing import Any
 
 from targetsafe.data_sources import PublicDataSources
 from targetsafe.decision import decide_candidate
-from targetsafe.models import CandidateRecord, DecisionResult, EvidenceBundle
+from targetsafe.models import CandidateRecord, DecisionResult, EvidenceBundle, GateAudit
+from targetsafe.runtime import default_model_for_provider, normalize_llm_provider
 from targetsafe.thresholds import ThresholdRegistry
 
 
@@ -18,16 +19,53 @@ class LLMClient:
         api_key: str | None = None,
         base_url: str | None = None,
         model: str | None = None,
+        provider: str | None = None,
     ) -> None:
         self.requested = enabled
-        self.api_key = (api_key or os.getenv("OPENAI_API_KEY") or "").strip()
-        self.enabled = enabled and bool(self.api_key)
-        self.base_url = (base_url or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")).rstrip("/")
-        self.model = model or os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+        self.provider = normalize_llm_provider(provider)
+        env_key = "ANTHROPIC_API_KEY" if self.provider == "anthropic" else "OPENAI_API_KEY"
+        self.api_key = (api_key or os.getenv(env_key) or "").strip()
+        self.enabled = enabled and self.provider != "deterministic" and bool(self.api_key)
+        self.base_url = (base_url or self._default_base_url()).rstrip("/")
+        self.model = model or self._default_model()
+        self.last_error = ""
 
     def chat(self, system: str, user: str) -> str | None:
         if not self.enabled:
             return None
+        if self.provider == "anthropic":
+            return self._chat_anthropic(system, user)
+        return self._chat_openai_compatible(system, user)
+
+    def test_connection(self) -> dict[str, Any]:
+        if not self.requested or self.provider == "deterministic":
+            return {
+                "ok": True,
+                "provider": self.provider,
+                "used": False,
+                "message": "Deterministic fallback selected; no external LLM call required.",
+            }
+        if not self.api_key:
+            return {
+                "ok": False,
+                "provider": self.provider,
+                "used": False,
+                "message": "API key is not configured.",
+            }
+        text = self.chat(
+            "You are a terse health-check responder.",
+            "Return the word ok if this connection works.",
+        )
+        return {
+            "ok": bool(text),
+            "provider": self.provider,
+            "used": bool(text),
+            "model": self.model,
+            "base_url_configured": bool(self.base_url),
+            "message": "LLM connection test succeeded." if text else self.last_error or "LLM connection test failed.",
+        }
+
+    def _chat_openai_compatible(self, system: str, user: str) -> str | None:
         payload = {
             "model": self.model,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -46,8 +84,53 @@ class LLMClient:
             with urllib.request.urlopen(request, timeout=12) as response:
                 data = json.loads(response.read().decode("utf-8"))
             return data["choices"][0]["message"]["content"]
-        except Exception:
+        except Exception as exc:
+            self.last_error = f"{self.provider} request failed with {exc.__class__.__name__}."
             return None
+
+    def _chat_anthropic(self, system: str, user: str) -> str | None:
+        payload = {
+            "model": self.model,
+            "system": system,
+            "max_tokens": 1000,
+            "temperature": 0.2,
+            "messages": [{"role": "user", "content": user}],
+        }
+        request = urllib.request.Request(
+            f"{self.base_url}/messages",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "x-api-key": self.api_key,
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=12) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            content = data.get("content") or []
+            text_parts = [part.get("text", "") for part in content if isinstance(part, dict)]
+            return "\n".join(part for part in text_parts if part).strip() or None
+        except Exception as exc:
+            self.last_error = f"{self.provider} request failed with {exc.__class__.__name__}."
+            return None
+
+    def _default_base_url(self) -> str:
+        if self.provider == "anthropic":
+            return os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com/v1")
+        if self.provider == "openai":
+            return os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        if self.provider == "openai-compatible":
+            return os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        return ""
+
+    def _default_model(self) -> str:
+        if self.provider == "anthropic":
+            return os.getenv("ANTHROPIC_MODEL", default_model_for_provider(self.provider))
+        if self.provider == "deterministic":
+            return "none"
+        return os.getenv("OPENAI_MODEL", default_model_for_provider(self.provider))
 
 
 class PlannerAgent:
@@ -120,6 +203,23 @@ class CriticAgent:
                 findings.append("Critic: high predicted activity is a ranking aid, not an experimentally verified claim.")
 
         decision.critic_findings.extend(findings)
+        for finding in findings:
+            blocks_go = any(token in finding.lower() for token in ["downgraded", "invalid", "unavailable", "alerts"])
+            decision.gate_audit.append(
+                GateAudit(
+                    gate_id="critic_review",
+                    criterion_id="critic_review",
+                    label="Critic overclaim review",
+                    observed_value=finding,
+                    status="review" if blocks_go and decision.final_status != "No-Go" else "block" if decision.final_status == "No-Go" else "pass",
+                    decision_effect="review_required" if blocks_go else "info",
+                    message=finding,
+                    source="Target-SAFE Critic Agent",
+                    rationale="The critic prevents confident advancement when evidence, applicability, alerts, or descriptor provenance are weak.",
+                )
+            )
+            if blocks_go:
+                decision.criteria.setdefault("critic_review", "review")
         if findings and "additional evidence" not in " ".join(decision.follow_up).lower():
             decision.follow_up.append("Confirm critic findings with RDKit, assay data, and expert review.")
         return decision

@@ -10,10 +10,13 @@ from pydantic import BaseModel, Field
 
 from targetsafe.chem import evaluate_smiles, mol_conformer_payload, mol_svg_data_uri
 from targetsafe.compute_profiles import profile_options
+from targetsafe.agents import LLMClient
+from targetsafe.decision import decision_rulebook
+from targetsafe.embeddings import gpu_diagnostics
 from targetsafe.library import DEFAULT_LIBRARY_SOURCES, parse_uploaded_smiles_text
 from targetsafe.pipeline import PipelineConfig, run_pipeline
 from targetsafe.reference_drugs import known_context_for_smiles, reference_drug, reference_drugs
-from targetsafe.runtime import runtime_status
+from targetsafe.runtime import default_model_for_provider, llm_provider_options, runtime_status
 
 
 DEFAULT_DISEASE = "EGFR mutation-positive NSCLC"
@@ -41,14 +44,25 @@ class RunRequest(BaseModel):
     uploaded_smiles: list[str] = Field(default_factory=list)
     uploaded_library_id: str | None = None
     llm_api_key: str = Field(default="", max_length=4000)
+    llm_provider: str = Field(default="openai", max_length=40)
     llm_base_url: str = Field(default="", max_length=400)
     llm_model: str = Field(default="", max_length=120)
+    llm_custom_model: str = Field(default="", max_length=160)
+    input_example_id: str = Field(default="", max_length=80)
 
 
 class LibraryImportRequest(BaseModel):
     name: str = Field(default="Uploaded compound library")
     text: str = Field(default="")
     smiles: list[str] = Field(default_factory=list)
+
+
+class LLMTestRequest(BaseModel):
+    llm_provider: str = Field(default="openai", max_length=40)
+    llm_api_key: str = Field(default="", max_length=4000)
+    llm_base_url: str = Field(default="", max_length=400)
+    llm_model: str = Field(default="", max_length=120)
+    llm_custom_model: str = Field(default="", max_length=160)
 
 
 app = FastAPI(
@@ -81,6 +95,39 @@ def compute_profiles() -> list[dict[str, Any]]:
 @app.get("/api/runtime-status")
 def get_runtime_status() -> dict[str, Any]:
     return runtime_status(requested_gpu=True, requested_llm=True)
+
+
+@app.get("/api/gpu-diagnostics")
+def get_gpu_diagnostics() -> dict[str, Any]:
+    return gpu_diagnostics()
+
+
+@app.get("/api/llm/providers")
+def get_llm_providers() -> list[dict[str, Any]]:
+    return llm_provider_options()
+
+
+@app.post("/api/llm/test")
+def test_llm_connection(request: LLMTestRequest) -> dict[str, Any]:
+    model = _selected_llm_model(request.llm_provider, request.llm_model, request.llm_custom_model)
+    client = LLMClient(
+        enabled=True,
+        provider=request.llm_provider,
+        api_key=request.llm_api_key,
+        base_url=request.llm_base_url or None,
+        model=model,
+    )
+    return client.test_connection()
+
+
+@app.get("/api/decision-rules")
+def get_decision_rules() -> dict[str, Any]:
+    return decision_rulebook()
+
+
+@app.get("/api/run-examples")
+def get_run_examples() -> list[dict[str, Any]]:
+    return run_examples()
 
 
 @app.get("/api/library/sources")
@@ -161,8 +208,10 @@ def create_run(request: RunRequest) -> dict[str, Any]:
             conformer_limit=request.conformer_limit,
             uploaded_smiles=uploaded_smiles,
             llm_api_key=request.llm_api_key,
+            llm_provider=request.llm_provider,
             llm_base_url=request.llm_base_url,
-            llm_model=request.llm_model,
+            llm_model=_selected_llm_model(request.llm_provider, request.llm_model, request.llm_custom_model),
+            input_example_id=request.input_example_id,
             output_dir=Path("outputs"),
         )
     )
@@ -308,3 +357,99 @@ def get_thresholds() -> dict[str, Any]:
     result = run_pipeline(PipelineConfig(candidate_count=20, compute_profile="cpu-demo", output_dir=Path("outputs")))
     _RUNS[result.run_id] = result.to_public_dict()
     return result.threshold_registry
+
+
+def _selected_llm_model(provider: str, model: str, custom_model: str) -> str:
+    if custom_model.strip():
+        return custom_model.strip()
+    if model.strip() and model.strip() != "custom":
+        return model.strip()
+    return default_model_for_provider(provider)
+
+
+def run_examples() -> list[dict[str, Any]]:
+    base = {
+        "disease": DEFAULT_DISEASE,
+        "target": DEFAULT_TARGET,
+        "optimization_goal": DEFAULT_GOAL,
+        "compute_profile": "full-research",
+        "allow_network": True,
+        "use_gpu": True,
+        "use_llm": True,
+        "enable_conformers": True,
+        "library_sources": ["seed_analog", "chembl_target", "pubchem_reference"],
+        "library_limit": 2000,
+        "detailed_eval_limit": 300,
+        "display_limit": 96,
+        "conformer_limit": 24,
+    }
+    return [
+        {
+            "id": "egfr_positive_control",
+            "label": "EGFR positive-control seed",
+            "description": "Known EGFR TKI-like seed; useful for checking target-specific scoring and graph evidence.",
+            "expected_behavior": "Should remain Go or upper Hold if evidence/API fallback is incomplete.",
+            "request": {
+                **base,
+                "seed_smiles": DEFAULT_SEED,
+                "candidate_count": 96,
+            },
+        },
+        {
+            "id": "caffeine_out_of_domain",
+            "label": "Caffeine out-of-domain control",
+            "description": "Drug-like but unrelated xanthine scaffold for applicability-domain stress testing.",
+            "expected_behavior": "Should not become confident Go; expected Hold due weak EGFR applicability/evidence.",
+            "request": {
+                **base,
+                "seed_smiles": "Cn1cnc2c1c(=O)n(C)c(=O)n2C",
+                "candidate_count": 96,
+                "library_sources": ["seed_analog", "pubchem_reference"],
+            },
+        },
+        {
+            "id": "invalid_smiles_no_go",
+            "label": "Invalid SMILES No-Go control",
+            "description": "Intentional bad structure for failure-path and No-Go audit verification.",
+            "expected_behavior": "Invalid control candidate should be No-Go with valid_smiles hard blocker.",
+            "request": {
+                **base,
+                "seed_smiles": "C1CC",
+                "candidate_count": 40,
+                "allow_network": False,
+                "use_gpu": False,
+                "use_llm": False,
+                "library_sources": ["seed_analog"],
+            },
+        },
+        {
+            "id": "structural_alert_stress",
+            "label": "Structural alert stress control",
+            "description": "Alert-heavy molecule used to verify Hold/No-Go warning behavior.",
+            "expected_behavior": "Should surface structural-alert review or blocker gates.",
+            "request": {
+                **base,
+                "seed_smiles": "O=N(=O)c1ccc(N=Nc2ccccc2)cc1",
+                "candidate_count": 60,
+                "library_sources": ["seed_analog", "pubchem_reference"],
+            },
+        },
+        {
+            "id": "uploaded_mini_library",
+            "label": "Uploaded mini-library demo",
+            "description": "Small pasted library that exercises import, invalid-row handling, and staged screening.",
+            "expected_behavior": "Should report uploaded count, duplicates/invalid rows, and detailed subset evaluation.",
+            "request": {
+                **base,
+                "seed_smiles": DEFAULT_SEED,
+                "candidate_count": 80,
+                "library_sources": ["seed_analog", "uploaded"],
+                "uploaded_smiles": [
+                    "CCO ethanol",
+                    "CC(=O)O acetic_acid",
+                    "not-a-smiles bad_row",
+                    DEFAULT_SEED,
+                ],
+            },
+        },
+    ]

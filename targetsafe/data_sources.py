@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import socket
+import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
@@ -52,6 +54,7 @@ class PublicDataSources:
                     status="fallback",
                     item_count=len(FALLBACK_CHEMBL_ACTIVITIES),
                     message="Only EGFR is implemented for the MVP.",
+                    error_category="fallback",
                 )
             )
             return FALLBACK_CHEMBL_ACTIVITIES
@@ -184,7 +187,14 @@ class PublicDataSources:
         cached = self.cache.get(source, cache_query, ttl_seconds=86400)
         if cached is not None:
             self.logs.append(
-                ToolCallLog(source=source, query=json.dumps(cache_query), status="ok", cached=True, item_count=1)
+                ToolCallLog(
+                    source=source,
+                    query=json.dumps(cache_query),
+                    status="ok",
+                    cached=True,
+                    item_count=1,
+                    error_category="cached",
+                )
             )
             return cached
         if not self.allow_network:
@@ -195,6 +205,7 @@ class PublicDataSources:
                     status="fallback",
                     cached=False,
                     message="Network disabled; using fallback evidence.",
+                    error_category="network_disabled",
                 )
             )
             return None
@@ -205,12 +216,47 @@ class PublicDataSources:
                 payload = json.loads(response.read().decode("utf-8"))
             self.cache.set(source, cache_query, payload)
             item_count = len(payload.get("activities", payload.get("studies", payload.get("results", []))))
+            status = "ok" if item_count else "empty"
             self.logs.append(
-                ToolCallLog(source=source, query=full_url, status="ok", cached=False, item_count=item_count)
+                ToolCallLog(
+                    source=source,
+                    query=full_url,
+                    status=status,
+                    cached=False,
+                    item_count=item_count,
+                    error_category="" if item_count else "http_empty",
+                    message="" if item_count else "Live API returned no rows; fallback evidence may be used.",
+                )
             )
             return payload
         except Exception as exc:
             self.logs.append(
-                ToolCallLog(source=source, query=full_url, status="error", cached=False, message=str(exc))
+                ToolCallLog(
+                    source=source,
+                    query=full_url,
+                    status="error",
+                    cached=False,
+                    message=str(exc),
+                    error_category=_categorize_fetch_error(exc),
+                )
             )
             return None
+
+
+def _categorize_fetch_error(exc: Exception) -> str:
+    if isinstance(exc, urllib.error.HTTPError):
+        if exc.code == 404:
+            return "http_empty"
+        if exc.code == 429:
+            return "rate_limited"
+        return f"http_{exc.code}"
+    if isinstance(exc, (TimeoutError, socket.timeout)):
+        return "timeout"
+    text = str(exc).lower()
+    if "10061" in text or "connection refused" in text or "actively refused" in text:
+        return "network_refused"
+    if "timed out" in text or "timeout" in text:
+        return "timeout"
+    if isinstance(exc, json.JSONDecodeError):
+        return "parse_error"
+    return "unknown_error"

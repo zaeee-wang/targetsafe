@@ -44,8 +44,10 @@ class PipelineConfig:
     conformer_limit: int = 24
     uploaded_smiles: list[str] = field(default_factory=list)
     llm_api_key: str = ""
+    llm_provider: str = "openai"
     llm_base_url: str = ""
     llm_model: str = ""
+    input_example_id: str = ""
     output_dir: Path = Path("outputs")
     cache_path: Path = Path("work/targetsafe_cache.sqlite")
 
@@ -64,12 +66,14 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
         llm_api_key=config.llm_api_key,
         llm_base_url=config.llm_base_url,
         llm_model=config.llm_model,
+        llm_provider=config.llm_provider,
     )
     thresholds = ThresholdRegistry()
     cache = SQLiteCache(config.cache_path)
     llm = LLMClient(
         enabled=use_llm,
         api_key=config.llm_api_key,
+        provider=config.llm_provider,
         base_url=config.llm_base_url or None,
         model=config.llm_model or None,
     )
@@ -91,6 +95,7 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
     evidence_agent = EvidenceAgent(sources)
     evidence = evidence_agent.collect(config.disease, config.target)
     evidence_mode = _summarize_evidence_mode(sources.logs)
+    tool_error_summary = _summarize_tool_errors(sources.logs)
     agent_events.append(
         AgentEvent(
             step=step,
@@ -299,6 +304,7 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
             "effective_use_gpu": use_gpu,
             "gpu_status": gpu_payload,
             "llm_status": runtime_payload.get("llm", {}),
+            "gpu_diagnostics": runtime_payload.get("gpu_diagnostics", {}),
         },
         threshold_registry=thresholds.to_dict(),
         evidence_graph=evidence_graph,
@@ -314,6 +320,9 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
                 "used": llm.enabled,
             },
         },
+        gpu_diagnostics=runtime_payload.get("gpu_diagnostics", {}),
+        tool_error_summary=tool_error_summary,
+        input_example_id=config.input_example_id,
         library_report=library_report,
         screening_stages=screening_stages,
     )
@@ -395,6 +404,7 @@ def _build_evaluation_report(candidates: list[CandidateRecord]) -> dict[str, obj
             "invalid_control_no_go": bool(invalid and invalid.decision and invalid.decision.final_status == "No-Go"),
             "all_decisions_have_reasons": all(c.decision and c.decision.reasons for c in candidates),
             "all_decisions_have_threshold_sources": all(c.decision and c.decision.threshold_ids for c in candidates),
+            "all_decisions_have_gate_audit": all(c.decision and c.decision.gate_audit for c in candidates),
             "all_decisions_have_evidence_nodes": all(c.decision and c.decision.evidence_node_ids for c in candidates),
             "display_candidates_have_structure_or_lazy_endpoint": any(
                 (c.structure_svg is not None) for c in candidates if c.descriptors and c.descriptors.valid
@@ -448,7 +458,7 @@ def _summarize_evidence_mode(logs: list[ToolCallLog]) -> dict[str, object]:
     if statuses == {"fallback"}:
         mode = "offline_fallback"
         label = "Offline fallback demo"
-    elif "error" in statuses and "fallback" in statuses:
+    elif "error" in statuses or "empty" in statuses:
         mode = "error_fallback"
         label = "API error with fallback evidence"
     elif statuses == {"ok"} and live_count > 0 and cached_count == 0:
@@ -464,6 +474,7 @@ def _summarize_evidence_mode(logs: list[ToolCallLog]) -> dict[str, object]:
         "mode": mode,
         "label": label,
         "counts": counts,
+        "error_categories": _count_by([log.error_category or "uncategorized" for log in logs if log.error_category]),
         "cached_calls": cached_count,
         "live_calls": live_count,
         "interpretation": (
@@ -472,6 +483,48 @@ def _summarize_evidence_mode(logs: list[ToolCallLog]) -> dict[str, object]:
             else "Evidence was retrieved from live or cached public calls and remains source-logged."
         ),
     }
+
+
+def _summarize_tool_errors(logs: list[ToolCallLog]) -> dict[str, object]:
+    by_source: dict[str, dict[str, object]] = {}
+    categories: dict[str, int] = {}
+    for log in logs:
+        category = log.error_category or ("cached" if log.cached else log.status)
+        categories[category] = categories.get(category, 0) + 1
+        source_summary = by_source.setdefault(
+            log.source,
+            {"calls": 0, "statuses": {}, "error_categories": {}, "last_message": "", "last_query": ""},
+        )
+        source_summary["calls"] = int(source_summary["calls"]) + 1
+        statuses = source_summary["statuses"]
+        errors = source_summary["error_categories"]
+        if isinstance(statuses, dict):
+            statuses[log.status] = statuses.get(log.status, 0) + 1
+        if isinstance(errors, dict):
+            errors[category] = errors.get(category, 0) + 1
+        if log.message:
+            source_summary["last_message"] = log.message
+            source_summary["last_query"] = log.query
+    severe = [key for key in ("network_refused", "timeout", "rate_limited", "http_empty") if categories.get(key)]
+    return {
+        "schema": "targetsafe.tool_error_summary.v1",
+        "total_calls": len(logs),
+        "categories": categories,
+        "by_source": by_source,
+        "has_live_errors": bool(severe),
+        "interpretation": (
+            "Some public evidence calls failed or returned empty rows; Target-SAFE used cached/fallback evidence and lowers scientific interpretation accordingly."
+            if severe
+            else "No blocking live evidence error was recorded, or the run intentionally used cached/fallback mode."
+        ),
+    }
+
+
+def _count_by(values: list[str]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for value in values:
+        counts[value] = counts.get(value, 0) + 1
+    return counts
 
 
 def _write_json_result(result: PipelineResult, output_dir: Path) -> None:

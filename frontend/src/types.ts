@@ -28,6 +28,24 @@ export interface DecisionResult {
   threshold_ids: string[];
   evidence_node_ids: string[];
   criteria: Record<string, string>;
+  gate_audit: GateAudit[];
+  decision_policy_version: string;
+}
+
+export interface GateAudit {
+  gate_id: string;
+  criterion_id: string;
+  label: string;
+  observed_value: unknown;
+  threshold_id: string;
+  threshold_value: unknown;
+  threshold_units: string;
+  direction: string;
+  status: string;
+  decision_effect: string;
+  message: string;
+  source: string;
+  rationale: string;
 }
 
 export interface Analog {
@@ -189,6 +207,9 @@ export interface PipelineResult {
   validation_report: ValidationReport;
   evidence_mode: EvidenceMode;
   runtime_status: RuntimeStatus;
+  gpu_diagnostics: Record<string, unknown>;
+  tool_error_summary: ToolErrorSummary;
+  input_example_id: string;
   library_report: LibraryReport;
   screening_stages: ScreeningStage[];
 }
@@ -212,8 +233,11 @@ export interface RunRequest {
   uploaded_smiles: string[];
   uploaded_library_id?: string | null;
   llm_api_key: string;
+  llm_provider: string;
   llm_base_url: string;
   llm_model: string;
+  llm_custom_model: string;
+  input_example_id: string;
 }
 
 export interface ReferenceDrug {
@@ -266,8 +290,45 @@ export interface StructureDepiction {
 export interface RuntimeStatus {
   schema?: string;
   gpu?: Record<string, unknown>;
+  gpu_diagnostics?: Record<string, unknown>;
   llm?: Record<string, unknown>;
   public_evidence_apis?: Record<string, unknown>;
+}
+
+export interface LlmProvider {
+  id: string;
+  label: string;
+  requires_key: boolean;
+  default_model: string;
+  models: string[];
+  base_url: string;
+  description: string;
+}
+
+export interface LlmTestResult {
+  ok: boolean;
+  provider: string;
+  used: boolean;
+  model?: string;
+  base_url_configured?: boolean;
+  message: string;
+}
+
+export interface RunExample {
+  id: string;
+  label: string;
+  description: string;
+  expected_behavior: string;
+  request: Partial<RunRequest>;
+}
+
+export interface ToolErrorSummary {
+  schema?: string;
+  total_calls?: number;
+  categories?: Record<string, number>;
+  by_source?: Record<string, unknown>;
+  has_live_errors?: boolean;
+  interpretation?: string;
 }
 
 export interface LibraryReport {

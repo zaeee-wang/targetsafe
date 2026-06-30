@@ -31,6 +31,10 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
         sa_score = f"{desc.sa_score:.2f}" if desc else ""
         alert_count = str(len(desc.alerts)) if desc else ""
         criteria = ", ".join(f"{key}:{value}" for key, value in (d.criteria if d else {}).items())
+        gate_summary = "; ".join(
+            f"{gate.gate_id}:{gate.status} ({gate.observed_value} vs {gate.threshold_value or 'n/a'})"
+            for gate in ((d.gate_audit if d else [])[:5])
+        )
         rows.append(
             "<tr>"
             f"<td>{html_escape(c.candidate_id)}</td>"
@@ -50,12 +54,15 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
             f"<td><code>{html_escape(c.smiles)}</code></td>"
             f"<td>{html_escape('; '.join(d.reasons[:2]) if d else '')}</td>"
             f"<td>{html_escape(criteria)}</td>"
+            f"<td>{html_escape(gate_summary)}</td>"
             "</tr>"
         )
 
     gpu = (result.runtime_status or {}).get("gpu", {})
+    gpu_diagnostics = result.gpu_diagnostics or (result.runtime_status or {}).get("gpu_diagnostics", {})
     llm = (result.runtime_status or {}).get("llm", {})
     library = result.library_report or {}
+    tool_errors = result.tool_error_summary or {}
     top_candidates = [candidate for candidate in result.candidates if candidate.decision][:8]
     top_cards = []
     for candidate in top_candidates:
@@ -66,6 +73,7 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
             f"<b>{html_escape(candidate.candidate_id)}</b>"
             f"<span class='badge'>{html_escape(decision.final_status if decision else 'Unscored')}</span>"
             f"<p>{html_escape('; '.join((decision.reasons if decision else [])[:2]))}</p>"
+            f"<p><b>Review/block:</b> {html_escape('; '.join((decision.hard_gate_failures + decision.uncertainty)[:2]) if decision else '')}</p>"
             f"<dl><dt>Source</dt><dd>{html_escape(candidate.library_source or candidate.source)}</dd>"
             f"<dt>Lower pChEMBL</dt><dd>{html_escape(interval.get('lower', '-'))}</dd>"
             f"<dt>Applicability</dt><dd>{candidate.applicability_score:.3f}</dd></dl>"
@@ -107,6 +115,11 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
 <body>
 <main>
   <h1>Target-SAFE Lead Triage Report</h1>
+  <section class="box">
+    <h2>한글 요약</h2>
+    <p>Target-SAFE는 후보물질을 임상적으로 유효하거나 안전하다고 선언하는 시스템이 아니라, 초기 리드 후보를 구조 유효성, 물성 hard gate, QSAR 적용영역, 예측 불확실성, 외부 근거, Critic Agent 검토 기준으로 <b>Go / Hold / No-Go</b>로 좁히는 근거 기반 의사결정 보조 시스템입니다.</p>
+    <p><b>No-Go</b>는 invalid SMILES, severe alert, 극단적 descriptor blocker처럼 즉시 중단해야 하는 경우입니다. <b>Hold</b>는 분자는 유효하지만 activity, applicability domain, uncertainty, evidence confidence, API fallback 중 하나 이상이 부족하여 추가 검증이 필요한 경우입니다. <b>Go</b>는 hard blocker가 없고 주요 gate가 모두 통과한 경우에만 붙습니다.</p>
+  </section>
   <section class="hero">
     <div class="hero-panel">
       <h2>What this run did</h2>
@@ -139,6 +152,17 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
     <div class="box"><b>LLM requested</b>{html_escape(llm.get("requested", ""))}<br><b>Configured/Provided</b>{html_escape(llm.get("configured", ""))}<br><b>Used</b>{html_escape(llm.get("used", ""))}</div>
     <div class="box"><b>Public APIs</b>ChEMBL, PubChem, ClinicalTrials.gov, openFDA<br>Key required: false<br>{html_escape((result.evidence_mode or {}).get("label", ""))}</div>
   </div>
+  <div class="grid">
+    <div class="box"><b>System GPU detected</b><br>{html_escape((gpu_diagnostics.get("system_gpu") or {}).get("detected", ""))}<br>{html_escape((gpu_diagnostics.get("system_gpu") or {}).get("message", ""))}</div>
+    <div class="box"><b>PyTorch CUDA usable</b><br>{html_escape((gpu_diagnostics.get("torch_cuda") or {}).get("usable", ""))}<br>{html_escape((gpu_diagnostics.get("torch_cuda") or {}).get("message", ""))}</div>
+    <div class="box"><b>Action hint</b><br>{html_escape(gpu_diagnostics.get("action_hint", ""))}</div>
+  </div>
+  <h2>Tool Error / Fallback Summary</h2>
+  <div class="grid">
+    <div class="box"><b>Total tool calls</b><br>{html_escape(tool_errors.get("total_calls", 0))}</div>
+    <div class="box"><b>Error categories</b><br>{html_escape(tool_errors.get("categories", {}))}</div>
+    <div class="box"><b>Interpretation</b><br>{html_escape(tool_errors.get("interpretation", ""))}</div>
+  </div>
   <h2>Library-Scale Screening</h2>
   <div class="grid">
     <div class="box"><b>Raw input</b><br>{html_escape(library.get("raw_input_count", 0))}</div>
@@ -154,6 +178,12 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
     <div class="box"><b>Hold</b><br>Plausible but needs more evidence, uncertainty reduction, analog review, or additional assay validation.</div>
     <div class="box"><b>No-Go</b><br>Invalid structure, severe blocker, unsupported activity claim, or hard descriptor/risk failure.</div>
   </div>
+  <h2>Decision Gate Semantics</h2>
+  <div class="grid">
+    <div class="box"><b>pass</b><br>Gate supports advancement.</div>
+    <div class="box"><b>review</b><br>Gate blocks a confident Go but keeps the molecule inspectable.</div>
+    <div class="box"><b>block</b><br>Hard blocker; candidate is No-Go unless corrected or regenerated.</div>
+  </div>
   <h2>Top Candidate Readout</h2>
   <div class="candidate-grid">{''.join(top_cards)}</div>
   <h2>Agentic Trace</h2>
@@ -166,7 +196,7 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
       <tr>
         <th>ID</th><th>Status</th><th>Source</th><th>Stage</th><th>Parent</th><th>Redesign reason</th><th>Support</th><th>Pred pChEMBL</th><th>Lower</th><th>Evidence</th>
         <th>QED</th><th>LogP</th><th>SA</th><th>Alerts</th><th>SMILES</th><th>Reasons</th>
-        <th>Criteria</th>
+        <th>Criteria</th><th>Gate audit excerpt</th>
       </tr>
     </thead>
     <tbody>{''.join(rows)}</tbody>

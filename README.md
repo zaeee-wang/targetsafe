@@ -16,6 +16,9 @@ The earlier MVP was useful but too close to a rule-based table. This version add
 - `Full research mode` is now the default run profile, with a stable CPU demo kept as a fallback action.
 - Optional OpenAI-compatible LLM API key input in the Run Console; the key is sent with the run request and is not returned in reports.
 - Runtime status panel that separates GPU/LLM `requested`, `available`, `used`, and fallback status.
+- GPU diagnostics that distinguish OS-visible GPU hardware, PyTorch CUDA usability, DirectML availability, and the actual Target-SAFE accelerated lane.
+- LLM provider selector for deterministic fallback, OpenAI, Anthropic, and OpenAI-compatible custom endpoints.
+- Run example/test-case drawer for EGFR positive control, caffeine out-of-domain control, invalid SMILES, structural-alert stress control, and uploaded mini-library checks.
 - Seed molecule drawer for choosing known drugs and control molecules without hand-typing SMILES.
 - Library-scale staged triage across seed analogs, ChEMBL target molecules, PubChem/reference records, and pasted/uploaded SMILES.
 - RDKit 2D structure depiction and interactive computed conformer view.
@@ -25,11 +28,13 @@ The earlier MVP was useful but too close to a rule-based table. This version add
 - Compute profile comparison matrix and target expansion map.
 - Scoped evidence graph view to avoid unreadable all-node label overlap.
 - Threshold registry with source/rationale for every decision gate.
+- Candidate-level gate audit showing observed value, threshold, direction, pass/review/block status, source, and rationale for each Go/Hold/No-Go decision.
 - Analog-supported EGFR QSAR with prediction interval and applicability domain.
 - Agentic trace with `Plan -> Act -> Observe -> Critique -> Replan -> Redesign -> Re-evaluate -> Decide` events.
 - Critic-triggered constrained redesign loop with parent/child candidate comparison.
 - EGFR QSAR validation outputs that report metrics only when enough structure/activity rows exist.
 - Evidence mode badges that distinguish offline fallback, live, cached, mixed, and error fallback evidence.
+- Tool-call error summary that distinguishes network refused, timeout, empty result, cached, network disabled, and fallback states.
 - GraphRAG-lite evidence graph.
 - Model card, ablation report, HTML report, and JSON outputs.
 - Streamlit fallback demo.
@@ -87,7 +92,9 @@ npm run build
 - `API assisted`: optional LLM/report support.
 - `Full research mode`: live evidence + optional GPU + optional LLM.
 
-`Full research mode` requests live evidence, GPU, and LLM lanes by default. The UI distinguishes what was requested from what was actually available and used. GPU status reports torch/CUDA availability, device name when detected, whether the CUDA similarity lane ran, and fallback reason when it did not. LLM support uses an OpenAI-compatible API key from the Run Console or `OPENAI_API_KEY`; without a key, deterministic planner/report fallback is used.
+`Full research mode` requests live evidence, GPU, and LLM lanes by default. The UI distinguishes what was requested from what was actually available and used. GPU status reports OS-visible GPU hardware, PyTorch CUDA availability, optional DirectML availability, device name when detected, whether the accelerated similarity lane ran, and fallback reason when it did not. If a PC has an NVIDIA GPU but the active Python environment has no CUDA-enabled PyTorch, Target-SAFE reports that hardware was detected but the compute backend is unavailable.
+
+LLM support can use deterministic fallback, OpenAI, Anthropic, or an OpenAI-compatible custom endpoint. API keys are accepted in the Run Console for a single run/test request and are not returned in run payloads, reports, or logs.
 
 GPU and LLM are optional enhancers. The core pipeline works without either.
 
@@ -117,6 +124,11 @@ User-facing guide:
 - `GET /api/health`
 - `GET /api/compute-profiles`
 - `GET /api/runtime-status`
+- `GET /api/gpu-diagnostics`
+- `GET /api/llm/providers`
+- `POST /api/llm/test`
+- `GET /api/decision-rules`
+- `GET /api/run-examples`
 - `GET /api/library/sources`
 - `POST /api/library/import`
 - `GET /api/reference-drugs`

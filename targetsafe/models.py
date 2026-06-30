@@ -26,6 +26,7 @@ class ToolCallLog:
     cached: bool = False
     item_count: int = 0
     message: str = ""
+    error_category: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -68,6 +69,26 @@ class DescriptorResult:
 
 
 @dataclass
+class GateAudit:
+    gate_id: str
+    criterion_id: str
+    label: str
+    observed_value: Any
+    threshold_id: str = ""
+    threshold_value: Any = None
+    threshold_units: str = ""
+    direction: str = ""
+    status: str = "review"
+    decision_effect: str = "review_required"
+    message: str = ""
+    source: str = ""
+    rationale: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class DecisionResult:
     final_status: str
     total_score: float
@@ -79,6 +100,8 @@ class DecisionResult:
     threshold_ids: list[str] = field(default_factory=list)
     evidence_node_ids: list[str] = field(default_factory=list)
     criteria: dict[str, str] = field(default_factory=dict)
+    gate_audit: list[GateAudit] = field(default_factory=list)
+    decision_policy_version: str = "targetsafe.decision_policy.v2"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -161,6 +184,9 @@ class PipelineResult:
     validation_report: dict[str, Any] = field(default_factory=dict)
     evidence_mode: dict[str, Any] = field(default_factory=dict)
     runtime_status: dict[str, Any] = field(default_factory=dict)
+    gpu_diagnostics: dict[str, Any] = field(default_factory=dict)
+    tool_error_summary: dict[str, Any] = field(default_factory=dict)
+    input_example_id: str = ""
     library_report: dict[str, Any] = field(default_factory=dict)
     screening_stages: list[dict[str, Any]] = field(default_factory=list)
 
@@ -183,6 +209,9 @@ class PipelineResult:
             "validation_report": self.validation_report,
             "evidence_mode": self.evidence_mode,
             "runtime_status": self.runtime_status,
+            "gpu_diagnostics": self.gpu_diagnostics,
+            "tool_error_summary": self.tool_error_summary,
+            "input_example_id": self.input_example_id,
             "library_report": self.library_report,
             "screening_stages": self.screening_stages,
         }

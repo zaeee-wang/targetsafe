@@ -31,11 +31,15 @@ import {
   fetchCandidates,
   fetchConformer,
   fetchDepiction,
+  fetchGpuDiagnostics,
   fetchKnownContext,
+  fetchLlmProviders,
   fetchProfiles,
   fetchReferenceDrugs,
   fetchRuntimeStatus,
-  importLibrary
+  fetchRunExamples,
+  importLibrary,
+  testLlmConnection
 } from "./api";
 import type {
   CandidatePage,
@@ -43,9 +47,12 @@ import type {
   ConformerPayload,
   EvidenceGraph,
   KnownContext,
+  LlmProvider,
+  LlmTestResult,
   LibraryImportResult,
   PipelineResult,
   ReferenceDrug,
+  RunExample,
   RunRequest,
   RuntimeStatus,
   Status,
@@ -82,8 +89,11 @@ const DEFAULT_REQUEST: RunRequest = {
   uploaded_smiles: [],
   uploaded_library_id: null,
   llm_api_key: "",
+  llm_provider: "openai",
   llm_base_url: "",
-  llm_model: "gpt-4.1-mini"
+  llm_model: "gpt-4.1-mini",
+  llm_custom_model: "",
+  input_example_id: ""
 };
 
 const STATUS_ORDER: Status[] = ["Go", "Hold", "No-Go"];
@@ -502,15 +512,34 @@ function RunConsole({
   onRun: (profileOverride?: string) => void;
 }) {
   const [seedDrawerOpen, setSeedDrawerOpen] = useState(false);
+  const [exampleDrawerOpen, setExampleDrawerOpen] = useState(false);
   const [uploadText, setUploadText] = useState("");
   const [uploadResult, setUploadResult] = useState<LibraryImportResult | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [llmProviders, setLlmProviders] = useState<LlmProvider[]>([]);
+  const [runExamples, setRunExamples] = useState<RunExample[]>([]);
+  const [llmTest, setLlmTest] = useState<LlmTestResult | null>(null);
+  const [llmTesting, setLlmTesting] = useState(false);
   const seedOptions = useMemo(() => buildSeedPresets(referenceDrugs), [referenceDrugs]);
   const activeRuntime = result?.runtime_status ?? runtimeStatus;
   const selectedProfile = localizedProfile(
     profiles.find((profile) => String(profile.id) === request.compute_profile) ?? { id: request.compute_profile },
     copy
   );
+  const selectedProvider = llmProviders.find((provider) => provider.id === request.llm_provider) ?? llmProviders[0];
+  const selectedProviderModels = selectedProvider?.models?.length ? selectedProvider.models : ["custom"];
+
+  useEffect(() => {
+    fetchLlmProviders().then(setLlmProviders).catch(() => {
+      setLlmProviders([
+        { id: "deterministic", label: "Deterministic fallback", requires_key: false, default_model: "none", models: ["none"], base_url: "", description: "No external LLM call." },
+        { id: "openai", label: "OpenAI", requires_key: true, default_model: "gpt-4.1-mini", models: ["gpt-4.1-mini", "gpt-4.1", "o4-mini", "custom"], base_url: "https://api.openai.com/v1", description: "OpenAI chat-completions compatible endpoint." },
+        { id: "anthropic", label: "Anthropic", requires_key: true, default_model: "claude-3-5-sonnet-latest", models: ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "custom"], base_url: "https://api.anthropic.com/v1", description: "Anthropic Messages API endpoint." },
+        { id: "openai-compatible", label: "OpenAI-compatible custom", requires_key: true, default_model: "custom", models: ["custom"], base_url: "", description: "Custom /chat/completions compatible endpoint." }
+      ]);
+    });
+    fetchRunExamples().then(setRunExamples).catch(() => setRunExamples([]));
+  }, []);
 
   async function handleLibraryImport() {
     if (!uploadText.trim()) return;
@@ -532,7 +561,8 @@ function RunConsole({
 
   async function refreshRuntimeStatus() {
     try {
-      onRuntimeStatus(await fetchRuntimeStatus());
+      const [status, diagnostics] = await Promise.all([fetchRuntimeStatus(), fetchGpuDiagnostics()]);
+      onRuntimeStatus({ ...status, gpu_diagnostics: diagnostics });
     } catch {
       onRuntimeStatus(null);
     }
@@ -546,6 +576,36 @@ function RunConsole({
       disease: preset.disease ?? request.disease
     });
     setSeedDrawerOpen(false);
+  }
+
+  function applyRunExample(example: RunExample) {
+    onRequestChange({
+      ...request,
+      ...example.request,
+      llm_api_key: request.llm_api_key,
+      llm_provider: request.llm_provider,
+      llm_model: request.llm_model,
+      llm_custom_model: request.llm_custom_model,
+      llm_base_url: request.llm_base_url,
+      input_example_id: example.id
+    });
+    setExampleDrawerOpen(false);
+  }
+
+  async function handleLlmTest() {
+    setLlmTesting(true);
+    try {
+      setLlmTest(await testLlmConnection(request));
+    } catch (exc) {
+      setLlmTest({
+        ok: false,
+        provider: request.llm_provider,
+        used: false,
+        message: exc instanceof Error ? exc.message : "LLM connection test failed."
+      });
+    } finally {
+      setLlmTesting(false);
+    }
   }
 
   return (
@@ -568,6 +628,10 @@ function RunConsole({
             <button className="ghost-action" onClick={() => onRun("cpu-demo")} disabled={loading} type="button">
               {copyText(copy, "console", "stableDemo", "Stable CPU demo")}
             </button>
+            <button className="ghost-action" onClick={() => setExampleDrawerOpen(true)} type="button">
+              <TestTube2 size={16} />
+              {copyText(copy, "console", "openExamples", "Open test cases")}
+            </button>
           </div>
         </div>
       </div>
@@ -576,11 +640,21 @@ function RunConsole({
         <section className="input-deck">
           <label>
             {copy.console.disease}
-            <input value={request.disease} onChange={(event) => onRequestChange({ ...request, disease: event.target.value })} />
+            <input
+              value={request.disease}
+              placeholder="EGFR mutation-positive NSCLC"
+              onChange={(event) => onRequestChange({ ...request, disease: event.target.value })}
+            />
+            <small className="field-help">{copyText(copy, "console", "diseaseHelp", "Clinical or research context used for evidence search and report framing.")}</small>
           </label>
           <label>
             {copy.console.target}
-            <input value={request.target} onChange={(event) => onRequestChange({ ...request, target: event.target.value })} />
+            <input
+              value={request.target}
+              placeholder="EGFR"
+              onChange={(event) => onRequestChange({ ...request, target: event.target.value })}
+            />
+            <small className="field-help">{copyText(copy, "console", "targetHelp", "Molecular target. EGFR is the validated scoring pilot in this MVP.")}</small>
           </label>
           <div className="wide field-block">
             <div className="field-label-row">
@@ -590,11 +664,22 @@ function RunConsole({
                 {copy.seedDrawer.open}
               </button>
             </div>
-            <textarea aria-label={copy.console.seed} value={request.seed_smiles} onChange={(event) => onRequestChange({ ...request, seed_smiles: event.target.value })} />
+            <textarea
+              aria-label={copy.console.seed}
+              value={request.seed_smiles}
+              placeholder="Paste one valid SMILES, or choose from the library drawer."
+              onChange={(event) => onRequestChange({ ...request, seed_smiles: event.target.value })}
+            />
+            <small className="field-help">{copyText(copy, "console", "seedHelp", "Starting molecule used to generate seed analogs; invalid SMILES should become No-Go controls.")}</small>
           </div>
           <label className="wide">
             {copy.console.goal}
-            <textarea value={request.optimization_goal} onChange={(event) => onRequestChange({ ...request, optimization_goal: event.target.value })} />
+            <textarea
+              value={request.optimization_goal}
+              placeholder="Maintain drug-likeness, reduce toxicity alerts, preserve target evidence confidence"
+              onChange={(event) => onRequestChange({ ...request, optimization_goal: event.target.value })}
+            />
+            <small className="field-help">{copyText(copy, "console", "goalHelp", "Natural-language optimization intent used by the planner and report summarizer; final decisions remain tool-gated.")}</small>
           </label>
           <div className="control-row">
             <label>
@@ -606,6 +691,7 @@ function RunConsole({
                 value={request.candidate_count}
                 onChange={(event) => onRequestChange({ ...request, candidate_count: Number(event.target.value) })}
               />
+              <small className="field-help">{copyText(copy, "console", "candidatesHelp", "Requested candidate count before library staging and detailed evaluation limits.")}</small>
             </label>
             <Toggle label={copy.console.liveApis} value={request.allow_network} onChange={(allow_network) => onRequestChange({ ...request, allow_network })} />
             <Toggle label={copy.console.gpu} value={request.use_gpu} onChange={(use_gpu) => onRequestChange({ ...request, use_gpu })} />
@@ -660,31 +746,75 @@ function RunConsole({
           </div>
           <div className="api-key-panel wide">
             <label>
+              {copyText(copy, "console", "llmProvider", "LLM provider")}
+              <select
+                value={request.llm_provider}
+                onChange={(event) => {
+                  const provider = llmProviders.find((item) => item.id === event.target.value);
+                  onRequestChange({
+                    ...request,
+                    llm_provider: event.target.value,
+                    llm_model: provider?.default_model ?? "custom",
+                    llm_base_url: provider?.base_url ?? "",
+                    llm_custom_model: ""
+                  });
+                  setLlmTest(null);
+                }}
+              >
+                {llmProviders.map((provider) => (
+                  <option key={provider.id} value={provider.id}>{provider.label}</option>
+                ))}
+              </select>
+              <small className="field-help">{selectedProvider?.description ?? "Optional LLM lane; deterministic fallback works without a key."}</small>
+            </label>
+            <label>
+              {copyText(copy, "console", "llmModel", "LLM model")}
+              <select
+                value={request.llm_model}
+                onChange={(event) => {
+                  onRequestChange({ ...request, llm_model: event.target.value });
+                  setLlmTest(null);
+                }}
+              >
+                {selectedProviderModels.map((model) => <option key={model} value={model}>{model}</option>)}
+              </select>
+            </label>
+            {(request.llm_model === "custom" || request.llm_provider === "openai-compatible") && (
+              <label>
+                {copyText(copy, "console", "llmCustomModel", "Custom model")}
+                <input
+                  value={request.llm_custom_model}
+                  placeholder="provider-model-name"
+                  onChange={(event) => onRequestChange({ ...request, llm_custom_model: event.target.value })}
+                />
+              </label>
+            )}
+            <label>
               {copyText(copy, "console", "llmApiKey", "LLM API key")}
               <input
                 type="password"
                 autoComplete="off"
                 value={request.llm_api_key}
                 placeholder={copyText(copy, "console", "llmApiKeyPlaceholder", "Optional; leave blank for deterministic fallback")}
-                onChange={(event) => onRequestChange({ ...request, llm_api_key: event.target.value })}
+                onChange={(event) => {
+                  onRequestChange({ ...request, llm_api_key: event.target.value });
+                  setLlmTest(null);
+                }}
               />
             </label>
             <label>
-              {copyText(copy, "console", "llmModel", "LLM model")}
-              <input
-                value={request.llm_model}
-                placeholder="gpt-4.1-mini"
-                onChange={(event) => onRequestChange({ ...request, llm_model: event.target.value })}
-              />
-            </label>
-            <label>
-              {copyText(copy, "console", "llmBaseUrl", "OpenAI-compatible base URL")}
+              {copyText(copy, "console", "llmBaseUrl", "Provider base URL")}
               <input
                 value={request.llm_base_url}
-                placeholder="https://api.openai.com/v1"
+                placeholder={selectedProvider?.base_url || "https://api.openai.com/v1"}
                 onChange={(event) => onRequestChange({ ...request, llm_base_url: event.target.value })}
               />
             </label>
+            <button className="ghost-action" onClick={handleLlmTest} disabled={llmTesting || request.llm_provider === "deterministic"} type="button">
+              {llmTesting ? <Loader2 className="spin" size={16} /> : <Network size={16} />}
+              {copyText(copy, "console", "testLlm", "Test LLM connection")}
+            </button>
+            {llmTest && <span className={`connection-result ${llmTest.ok ? "ok" : "fail"}`}>{llmTest.message}</span>}
             <p>{copyText(copy, "console", "llmKeyNote", "The key is sent only with the run request and is not returned in reports or stored in run results.")}</p>
           </div>
           <div className="wide upload-panel">
@@ -720,6 +850,21 @@ function RunConsole({
               </div>
             ))}
           </div>
+          <div className="side-rulebook">
+            <p className="eyebrow">{copyText(copy, "reports", "decisionRulebook", "Decision rulebook")}</p>
+            <div>
+              <strong>Go</strong>
+              <span>{copyText(copy, "reports", "goRule", "All hard gates pass and evidence is sufficient.")}</span>
+            </div>
+            <div>
+              <strong>Hold</strong>
+              <span>{copyText(copy, "reports", "holdRule", "At least one review gate needs more evidence.")}</span>
+            </div>
+            <div>
+              <strong>No-Go</strong>
+              <span>{copyText(copy, "reports", "nogoRule", "Invalid structure, severe alert, or hard blocker.")}</span>
+            </div>
+          </div>
           {error && <div className="error-box">{error}</div>}
         </section>
       </div>
@@ -741,6 +886,14 @@ function RunConsole({
           onClose={() => setSeedDrawerOpen(false)}
         />
       )}
+      {exampleDrawerOpen && (
+        <ExampleDrawer
+          examples={runExamples}
+          copy={copy}
+          onApply={applyRunExample}
+          onClose={() => setExampleDrawerOpen(false)}
+        />
+      )}
     </section>
   );
 }
@@ -759,11 +912,16 @@ function ExecutionRealityPanel({
   onRefresh: () => void;
 }) {
   const gpu = (result?.compute_profile?.gpu_status as Record<string, unknown> | undefined) ?? runtimeStatus?.gpu ?? {};
+  const gpuDiagnostics = (result?.gpu_diagnostics as Record<string, unknown> | undefined) ?? runtimeStatus?.gpu_diagnostics ?? (gpu.diagnostics as Record<string, unknown> | undefined) ?? {};
+  const systemGpu = (gpuDiagnostics.system_gpu as Record<string, unknown> | undefined) ?? {};
+  const torchCuda = (gpuDiagnostics.torch_cuda as Record<string, unknown> | undefined) ?? {};
+  const directml = (gpuDiagnostics.directml as Record<string, unknown> | undefined) ?? {};
   const llm = runtimeStatus?.llm ?? (result?.compute_profile?.llm_status as Record<string, unknown> | undefined) ?? {};
   const llmKeyProvided = Boolean(request.llm_api_key.trim());
   const llmAvailable = truthValue(llm, "configured") || llmKeyProvided;
   const library = result?.library_report;
   const evidence = result?.evidence_mode;
+  const toolErrors = result?.tool_error_summary;
   return (
     <section className="execution-reality">
       <div className="panel-heading">
@@ -783,15 +941,27 @@ function ExecutionRealityPanel({
           detail={[
             `${copyText(copy, "console", "requested", "requested")}: ${request.use_gpu || request.compute_profile.includes("gpu") || request.compute_profile === "full-research" ? copy.profiles.on : copy.profiles.off}`,
             `${copyText(copy, "console", "device", "device")}: ${String(gpu.device_name ?? gpu.backend ?? "unknown")}`,
-            String(gpu.fallback_reason ?? gpu.message ?? "")
+            String(gpu.fallback_reason ?? gpu.message ?? ""),
+            String(gpu.action_hint ?? gpuDiagnostics.action_hint ?? "")
           ].filter(Boolean).join(" / ")}
+        />
+        <RealityCard
+          label={copyText(copy, "console", "systemGpu", "System GPU detected")}
+          value={truthValue(systemGpu, "detected") ? copyText(copy, "console", "available", "available") : copyText(copy, "console", "fallback", "fallback")}
+          detail={String(systemGpu.message ?? "nvidia-smi diagnostics pending.")}
+        />
+        <RealityCard
+          label={copyText(copy, "console", "torchCuda", "Torch CUDA usable")}
+          value={truthValue(torchCuda, "usable") ? copyText(copy, "console", "available", "available") : copyText(copy, "console", "fallback", "fallback")}
+          detail={[String(torchCuda.message ?? ""), `DirectML: ${truthValue(directml, "usable") ? "usable" : "not usable"}`].filter(Boolean).join(" / ")}
         />
         <RealityCard
           label="LLM"
           value={truthValue(llm, "used") ? copyText(copy, "console", "used", "used") : llmAvailable ? copyText(copy, "console", "available", "available") : copyText(copy, "console", "fallback", "fallback")}
           detail={[
             `${copyText(copy, "console", "requested", "requested")}: ${request.use_llm || request.compute_profile === "api-assisted" || request.compute_profile === "full-research" ? copy.profiles.on : copy.profiles.off}`,
-            llmKeyProvided ? copyText(copy, "console", "llmKeyProvided", "API key provided in the run form.") : String(llm.message ?? "OPENAI_API_KEY status unknown.")
+            `provider: ${request.llm_provider}`,
+            llmKeyProvided ? copyText(copy, "console", "llmKeyProvided", "API key provided in the run form.") : String(llm.message ?? "LLM key status unknown.")
           ].join(" / ")}
         />
         <RealityCard
@@ -803,6 +973,11 @@ function ExecutionRealityPanel({
           label={copyText(copy, "console", "libraryScale", "Library scale")}
           value={`${formatInteger(library?.valid_unique_count)} ${copyText(copy, "console", "uniqueCompounds", "unique compounds")}`}
           detail={`${formatInteger(library?.detailed_evaluation_count)} ${copyText(copy, "console", "detailedEvaluated", "detailed evaluated")} / ${formatInteger(library?.display_asset_count)} ${copyText(copy, "console", "rendered", "rendered")}`}
+        />
+        <RealityCard
+          label={copyText(copy, "console", "toolErrors", "Tool calls")}
+          value={toolErrors?.has_live_errors ? copyText(copy, "console", "fallback", "fallback") : copyText(copy, "console", "available", "available")}
+          detail={`${formatInteger(toolErrors?.total_calls)} calls / ${String(toolErrors?.interpretation ?? "Run pending.")}`}
         />
       </div>
     </section>
@@ -965,6 +1140,58 @@ function SeedDrawer({
               </div>
             </article>
           ))}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function ExampleDrawer({
+  examples,
+  copy,
+  onApply,
+  onClose
+}: {
+  examples: RunExample[];
+  copy: Copy;
+  onApply: (example: RunExample) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="drawer-backdrop" role="presentation">
+      <aside className="seed-drawer example-drawer" aria-label={copyText(copy, "console", "exampleDrawerTitle", "Input examples and test cases")}>
+        <div className="drawer-header">
+          <div>
+            <p className="eyebrow">{copyText(copy, "console", "exampleDrawerEyebrow", "Run examples")}</p>
+            <h3>{copyText(copy, "console", "exampleDrawerTitle", "Input examples and test cases")}</h3>
+            <p>{copyText(copy, "console", "exampleDrawerBody", "Use these presets to understand what each field means and to verify expected Go/Hold/No-Go behavior.")}</p>
+          </div>
+          <button className="icon-action" onClick={onClose} type="button" title={copy.seedDrawer.close}>
+            <X size={18} />
+          </button>
+        </div>
+        <div className="example-grid">
+          {examples.map((example) => (
+            <article className="example-card" key={example.id}>
+              <span>{example.id}</span>
+              <h4>{example.label}</h4>
+              <p>{example.description}</p>
+              <div className="drawer-warning">
+                <TestTube2 size={15} />
+                <small>{example.expected_behavior}</small>
+              </div>
+              <dl className="example-dl">
+                <dt>Disease</dt><dd>{String(example.request.disease ?? "-")}</dd>
+                <dt>Target</dt><dd>{String(example.request.target ?? "-")}</dd>
+                <dt>Seed</dt><dd><code>{String(example.request.seed_smiles ?? "-")}</code></dd>
+                <dt>Sources</dt><dd>{(example.request.library_sources ?? []).join(", ")}</dd>
+              </dl>
+              <button className="primary-action" onClick={() => onApply(example)} type="button">
+                {copyText(copy, "console", "applyExample", "Apply example")}
+              </button>
+            </article>
+          ))}
+          {!examples.length && <p className="context-note">{copyText(copy, "console", "examplesLoading", "Examples are loading or unavailable.")}</p>}
         </div>
       </aside>
     </div>
@@ -1305,6 +1532,7 @@ function CandidateTwin({
               </div>
             ))}
           </div>
+          <GateAuditTable decision={decision} copy={copy} />
           <button className="ghost-action" onClick={onOpenGraph} type="button">
             <GitBranch size={16} />
             {copy.twin.inspectGraph}
@@ -1358,6 +1586,43 @@ function CandidateTwin({
         </section>
       </div>
     </section>
+  );
+}
+
+function GateAuditTable({ decision, copy }: { decision: Candidate["decision"]; copy: Copy }) {
+  const gates = decision?.gate_audit ?? [];
+  if (!gates.length) {
+    return <p className="context-note">{copyText(copy, "twin", "gateAuditPending", "Gate audit will appear after a run.")}</p>;
+  }
+  return (
+    <div className="gate-audit">
+      <div className="gate-audit-head">
+        <h4>{copyText(copy, "twin", "gateAudit", "Gate audit")}</h4>
+        <span>{copyText(copy, "twin", "gatePassRatio", "gate pass ratio")}: {formatNumber(decision?.total_score, 2)}</span>
+      </div>
+      <div className="gate-table" role="table" aria-label={copyText(copy, "twin", "gateAudit", "Gate audit")}>
+        <div className="gate-row gate-header" role="row">
+          <span>{copyText(copy, "twin", "gate", "Gate")}</span>
+          <span>{copyText(copy, "twin", "observed", "Observed")}</span>
+          <span>{copyText(copy, "twin", "threshold", "Threshold")}</span>
+          <span>{copyText(copy, "twin", "effect", "Effect")}</span>
+        </div>
+        {gates.slice(0, 10).map((gate, index) => (
+          <div className={`gate-row ${gate.status}`} role="row" key={`${gate.gate_id}-${index}`}>
+            <span>
+              <strong>{gate.label || gate.gate_id}</strong>
+              <small>{gate.source}</small>
+            </span>
+            <span>{formatGateValue(gate.observed_value)}</span>
+            <span>{gate.threshold_id ? `${formatGateValue(gate.threshold_value)} ${gate.threshold_units}` : "n/a"}</span>
+            <span>
+              <b>{gate.status}</b>
+              <small>{gate.message}</small>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1654,6 +1919,8 @@ function KnownDrugsAndRisks({
 }
 
 function Reports({ result, copy, locale }: { result: PipelineResult | null; copy: Copy; locale: Locale }) {
+  const toolSummary = result?.tool_error_summary;
+  const categories = Object.entries(toolSummary?.categories ?? {});
   return (
     <section className="view-frame reports-view">
       <div className="section-header">
@@ -1677,6 +1944,28 @@ function Reports({ result, copy, locale }: { result: PipelineResult | null; copy
             <dt>{copy.reports.sourceRequired}</dt>
             <dd>{String(result?.evidence_mode?.interpretation ?? "-")}</dd>
           </dl>
+        </section>
+        <section className="report-panel">
+          <h3>{copyText(copy, "reports", "decisionRulebook", "Decision rulebook")}</h3>
+          <div className="rulebook-list">
+            <div><b>Go</b><span>{copyText(copy, "reports", "goRule", "All hard gates pass, evidence and applicability are sufficient, and critic finds no blocker.")}</span></div>
+            <div><b>Hold</b><span>{copyText(copy, "reports", "holdRule", "Molecule is inspectable, but at least one review gate needs more evidence or uncertainty reduction.")}</span></div>
+            <div><b>No-Go</b><span>{copyText(copy, "reports", "nogoRule", "Invalid structure, severe alert, or hard descriptor blocker.")}</span></div>
+          </div>
+        </section>
+        <section className="report-panel">
+          <h3>{copyText(copy, "reports", "toolErrors", "Tool error / fallback summary")}</h3>
+          <dl className="model-dl">
+            <dt>{copyText(copy, "reports", "totalCalls", "Total calls")}</dt>
+            <dd>{formatInteger(toolSummary?.total_calls)}</dd>
+            <dt>{copy.reports.status}</dt>
+            <dd>{toolSummary?.has_live_errors ? copyText(copy, "console", "fallback", "fallback") : copyText(copy, "console", "available", "available")}</dd>
+            <dt>{copy.reports.sourceRequired}</dt>
+            <dd>{String(toolSummary?.interpretation ?? "-")}</dd>
+          </dl>
+          <div className="metric-list">
+            {categories.map(([key, value]) => <span key={key}>{key}: {value}</span>)}
+          </div>
         </section>
         <section className="report-panel">
           <h3>{copy.reports.modelCard}</h3>
@@ -1958,6 +2247,13 @@ function formatNumber(value: number | null | undefined, digits = 2) {
 function formatInteger(value: number | null | undefined) {
   if (typeof value !== "number" || Number.isNaN(value)) return "-";
   return Math.round(value).toLocaleString();
+}
+
+function formatGateValue(value: unknown) {
+  if (typeof value === "number") return Number.isInteger(value) ? String(value) : value.toFixed(3);
+  if (Array.isArray(value)) return value.length ? value.slice(0, 3).join(", ") : "none";
+  if (value === null || value === undefined || value === "") return "-";
+  return String(value);
 }
 
 function truthValue(record: Record<string, unknown>, key: string) {

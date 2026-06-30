@@ -5,12 +5,14 @@ import uuid
 from pathlib import Path
 
 from targetsafe.chem import evaluate_smiles, generate_seed_analogs
+from targetsafe.data_sources import _categorize_fetch_error
 from targetsafe.decision import decide_candidate
+from targetsafe.embeddings import gpu_diagnostics
 from targetsafe.models import CandidateRecord, EvidenceBundle
 from targetsafe.pipeline import PipelineConfig, run_pipeline
 from targetsafe.qsar import EvidenceWeightedQSAR
 from targetsafe.reference_drugs import known_context_for_smiles, reference_drugs
-from targetsafe.runtime import runtime_status
+from targetsafe.runtime import llm_provider_options, runtime_status
 from targetsafe.validation import build_qsar_validation_report
 
 
@@ -36,12 +38,15 @@ class TargetSafePipelineTests(unittest.TestCase):
         self.assertTrue(result.report_path)
         self.assertIn("candidate_count_at_least_50", result.evaluation_report["acceptance_checks"])
         self.assertTrue(result.evaluation_report["acceptance_checks"]["all_decisions_have_threshold_sources"])
+        self.assertTrue(result.evaluation_report["acceptance_checks"]["all_decisions_have_gate_audit"])
         self.assertTrue(result.evaluation_report["acceptance_checks"]["all_decisions_have_evidence_nodes"])
         self.assertIn("rules", result.threshold_registry)
         self.assertIn("nodes", result.evidence_graph)
         self.assertIn("model_id", result.model_card)
         self.assertEqual(result.evidence_mode["mode"], "offline_fallback")
         self.assertIn("library_report", result.to_public_dict())
+        self.assertIn("tool_error_summary", result.to_public_dict())
+        self.assertIn("gpu_diagnostics", result.to_public_dict())
         self.assertGreaterEqual(result.library_report["valid_unique_count"], 50)
         self.assertEqual(result.runtime_status["llm"]["used"], False)
         self.assertGreaterEqual(result.redesign_report["created_children"], 1)
@@ -61,6 +66,21 @@ class TargetSafePipelineTests(unittest.TestCase):
         self.assertEqual(decision.final_status, "No-Go")
         self.assertIn("invalid_smiles", decision.hard_gate_failures)
         self.assertTrue(decision.threshold_ids)
+        self.assertTrue(decision.gate_audit)
+        self.assertEqual(decision.gate_audit[0].status, "block")
+
+    def test_caffeine_control_is_not_confident_go(self) -> None:
+        candidate = CandidateRecord(candidate_id="CAF", smiles="Cn1cnc2c1c(=O)n(C)c(=O)n2C", source="test")
+        candidate.descriptors = evaluate_smiles(candidate.smiles)
+        candidate.predicted_activity = 5.0
+        candidate.prediction_interval = {"lower": 4.0, "mean": 5.0, "upper": 6.6, "width": 2.6}
+        candidate.applicability_score = 0.02
+        candidate.in_applicability_domain = False
+        candidate.evidence_confidence = 0.1
+        decision = decide_candidate(candidate)
+        self.assertEqual(decision.final_status, "Hold")
+        self.assertEqual(decision.criteria["applicability_domain"], "review")
+        self.assertTrue(any(gate.status == "review" for gate in decision.gate_audit))
 
     def test_alert_control_is_flagged(self) -> None:
         candidate = CandidateRecord(candidate_id="X", smiles="O=N(=O)c1ccc(N=Nc2ccccc2)cc1", source="test")
@@ -94,10 +114,31 @@ class TargetSafePipelineTests(unittest.TestCase):
     def test_runtime_status_reports_llm_key_absence_without_secret(self) -> None:
         status = runtime_status(requested_gpu=True, requested_llm=True)
         self.assertIn("gpu", status)
+        self.assertIn("gpu_diagnostics", status)
         self.assertIn("llm", status)
         self.assertIn("public_evidence_apis", status)
         self.assertNotIn("api_key", status["llm"])
         self.assertIn("configured", status["llm"])
+
+    def test_llm_provider_options_and_runtime_secret_safety(self) -> None:
+        providers = {item["id"] for item in llm_provider_options()}
+        self.assertTrue({"openai", "anthropic", "deterministic", "openai-compatible"} <= providers)
+        status = runtime_status(requested_gpu=False, requested_llm=True, llm_provider="anthropic", llm_api_key="secret")
+        self.assertEqual(status["llm"]["provider"], "anthropic")
+        self.assertTrue(status["llm"]["configured"])
+        self.assertNotIn("secret", str(status))
+
+    def test_gpu_diagnostics_schema_reports_compute_backend(self) -> None:
+        diagnostics = gpu_diagnostics()
+        self.assertEqual(diagnostics["schema"], "targetsafe.gpu_diagnostics.v1")
+        self.assertIn("system_gpu", diagnostics)
+        self.assertIn("torch_cuda", diagnostics)
+        self.assertIn("action_hint", diagnostics)
+
+    def test_tool_error_categories(self) -> None:
+        refused = OSError("[WinError 10061] connection refused")
+        self.assertEqual(_categorize_fetch_error(refused), "network_refused")
+        self.assertEqual(_categorize_fetch_error(TimeoutError("timed out")), "timeout")
 
     def test_uploaded_library_rows_are_staged_and_reported(self) -> None:
         root = Path("work") / "test_runs" / uuid.uuid4().hex

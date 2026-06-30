@@ -3,10 +3,13 @@ import type {
   CandidatePage,
   ConformerPayload,
   KnownContext,
+  LlmProvider,
+  LlmTestResult,
   LibraryImportResult,
   PipelineResult,
   RedesignReport,
   ReferenceDrug,
+  RunExample,
   RunRequest,
   RuntimeStatus,
   StructureDepiction,
@@ -40,6 +43,57 @@ export async function fetchRuntimeStatus(): Promise<RuntimeStatus> {
   const response = await fetch(`${API_BASE}/api/runtime-status`);
   if (!response.ok) {
     throw new Error("Unable to load runtime status.");
+  }
+  return response.json();
+}
+
+export async function fetchGpuDiagnostics(): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE}/api/gpu-diagnostics`);
+  if (!response.ok) {
+    throw new Error("Unable to load GPU diagnostics.");
+  }
+  return response.json();
+}
+
+export async function fetchLlmProviders(): Promise<LlmProvider[]> {
+  const response = await fetch(`${API_BASE}/api/llm/providers`);
+  if (!response.ok) {
+    throw new Error("Unable to load LLM providers.");
+  }
+  return response.json();
+}
+
+export async function testLlmConnection(request: RunRequest): Promise<LlmTestResult> {
+  const response = await fetch(`${API_BASE}/api/llm/test`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      llm_provider: request.llm_provider,
+      llm_api_key: request.llm_api_key,
+      llm_base_url: request.llm_base_url,
+      llm_model: request.llm_model,
+      llm_custom_model: request.llm_custom_model
+    })
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || "Unable to test LLM connection.");
+  }
+  return response.json();
+}
+
+export async function fetchRunExamples(): Promise<RunExample[]> {
+  const response = await fetch(`${API_BASE}/api/run-examples`);
+  if (!response.ok) {
+    throw new Error("Unable to load run examples.");
+  }
+  return response.json();
+}
+
+export async function fetchDecisionRules(): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE}/api/decision-rules`);
+  if (!response.ok) {
+    throw new Error("Unable to load decision rules.");
   }
   return response.json();
 }
