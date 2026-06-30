@@ -22,6 +22,9 @@ After:
 - Every threshold is recorded in `outputs/threshold_registry.json`.
 - Each candidate has a molecular evidence twin: structure, descriptors, activity interval, applicability domain, analogs, evidence, decision, and next validation.
 - Evidence is represented as a GraphRAG-lite decision graph in `outputs/evidence_graph.json`.
+- Critic findings now trigger a constrained redesign iteration and parent/child comparison.
+- EGFR QSAR validation now writes explicit validation outputs or `insufficient_data` when rows are not enough.
+- Evidence mode is surfaced as offline fallback, live, cached, mixed, or error fallback.
 - Compute profiles make CPU/GPU/API tradeoffs explicit.
 - React provides the main judging interface; Streamlit remains as fallback.
 
@@ -57,6 +60,9 @@ flowchart TD
     QSAR --> Decision
     Graph --> Decision
     Decision --> Critic["Critic Agent"]
+    Critic --> Redesign["Constrained Redesign Agent"]
+    Redesign --> QSAR
+    Pipeline --> Validation["EGFR QSAR Validation Agent"]
     Critic --> Report["HTML report + digital twin payload"]
 ```
 
@@ -69,6 +75,8 @@ Key modules:
 - `targetsafe/qsar.py`: analog-supported EGFR QSAR, interval, applicability domain, model card.
 - `targetsafe/evidence_graph.py`: GraphRAG-lite evidence graph and molecular twin payload.
 - `targetsafe/chem.py`: descriptors, 2D depiction, optional computed conformer.
+- `targetsafe/redesign.py`: critic-triggered constrained redesign and parent/child comparison.
+- `targetsafe/validation.py`: EGFR QSAR validation metrics or explicit insufficient-data report.
 - `frontend/`: Vite + React + TypeScript judging UI.
 
 ## 5. 프로그램 파이프라인
@@ -82,9 +90,12 @@ Key modules:
 7. Optional GPU profile adds GPU detection and analog retrieval metadata, falling back safely if unavailable.
 8. Decision module applies threshold-sourced hard gates and uncertainty-aware triage.
 9. Critic Agent downgrades unsupported Go calls and records cautionary findings.
-10. Evidence graph connects candidate, descriptor, prediction, analog, threshold, alert, risk, and decision nodes.
-11. React UI renders the candidate board, molecular twin, conformer view, evidence graph, model card, and trace.
-12. Reports and JSON artifacts are written under `outputs/`.
+10. Redesign Agent converts eligible critic findings into constrained EGFR reference/template child candidates.
+11. Child candidates are re-evaluated with the same descriptor, QSAR, threshold, and critic logic.
+12. Validation Agent runs EGFR QSAR validation when enough rows exist or reports `insufficient_data`.
+13. Evidence graph connects candidate, descriptor, prediction, analog, threshold, alert, risk, redesign, and decision nodes.
+14. React UI renders the candidate board, molecular twin, conformer view, evidence graph, model card, validation, redesign report, and trace.
+15. Reports and JSON artifacts are written under `outputs/`.
 
 ## 6. Go/Hold/No-Go 의사결정 로직
 
@@ -146,6 +157,9 @@ Generated outputs:
 - `outputs/threshold_registry.json`
 - `outputs/evidence_graph.json`
 - `outputs/ablation_report.html`
+- `outputs/evaluation_metrics_egfr.json`
+- `outputs/qsar_validation_report.html`
+- `outputs/scaffold_split_summary.json`
 - `outputs/*_targetsafe_report.html`
 - `outputs/*_result.json`
 
@@ -160,6 +174,9 @@ The React UI shows:
 - ADMET/risk rails,
 - evidence graph,
 - agent trace,
+- evidence mode,
+- QSAR validation status and metrics,
+- critic redesign parent/child comparison,
 - model card,
 - HTML report link.
 
@@ -200,20 +217,24 @@ Implemented tests check:
 - every decision has threshold IDs,
 - every decision has evidence graph nodes,
 - GPU profile falls back without crashing.
+- critic-triggered redesign children keep parent IDs.
+- invalid SMILES is not redesigned as if it were a valid molecule.
+- offline fallback validation reports insufficient data instead of fake metrics.
+- synthetic/live-like EGFR rows generate validation metrics.
 
 ## 10. 한계와 후속 고도화
 
 Current limitations:
 
-- Offline QSAR is analog-supported and demo-grade, not publication-grade.
-- Live ChEMBL model training hook is present conceptually, but scaffold-split trained model should be expanded for final research claims.
+- Offline QSAR is analog-supported and demo-grade unless validation rows are sufficient.
+- If scikit-learn is unavailable, validation uses a deterministic nearest-analog baseline and labels it as a fallback.
 - Computed conformer is not a binding pose.
 - Clinical/regulatory evidence is class-level context, not candidate-specific safety evidence.
 - Hosted ADMET and true GPU deep-learning ensemble are optional future upgrades.
 
 Recommended next upgrades:
 
-- Add scaffold-split ChEMBL EGFR training and validation metrics.
+- Increase live ChEMBL EGFR rows for stronger scaffold-split validation.
 - Add SHAP/permutation or nearest-neighbor explanation for model output.
 - Add hosted ADMET adapters with provenance.
 - Add visual ablation comparison in the React UI.

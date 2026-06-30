@@ -48,6 +48,8 @@ The drawer is designed for fast demo and stress testing.
    - Supports 2D structure and interactive 3D conformer views.
    - The 3D view is explicitly labeled as a computed conformer, not a binding pose.
    - Exports a simple `.xyz` conformer file for external viewers such as PyMOL or Avogadro.
+   - Shows whether the candidate is a critic-generated redesign child or whether it has child suggestions.
+   - Keeps parent/child comparison as a review aid, not as an optimized-drug claim.
 
 4. `Evidence Graph`
    - Provides a dedicated zoomable and pannable graph explorer.
@@ -60,7 +62,9 @@ The drawer is designed for fast demo and stress testing.
    - Clearly states that known-drug risk context is not candidate-specific toxicity.
 
 6. `Reports`
-   - Shows model card, threshold registry, agent trace, and report link.
+   - Shows evidence mode, scientific validation status, model card, threshold registry, agentic trace, redesign report, and report link.
+   - Agent trace is now an event timeline covering Plan, Act, Observe, Critique, Replan, Redesign, Re-evaluate, and Decide.
+   - Validation panels distinguish insufficient fallback data from real validation metrics.
 
 ## Why This Fixes The Previous UI Problem
 
@@ -74,6 +78,7 @@ The new UI separates actions by research intent:
 - inspect one candidate deeply,
 - inspect evidence graph,
 - inspect known drug risk context,
+- inspect critic-driven redesign and validation status,
 - export reports.
 
 This makes the system easier to demonstrate and easier for judges to understand.

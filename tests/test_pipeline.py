@@ -4,11 +4,13 @@ import unittest
 import uuid
 from pathlib import Path
 
-from targetsafe.chem import evaluate_smiles
+from targetsafe.chem import evaluate_smiles, generate_seed_analogs
 from targetsafe.decision import decide_candidate
-from targetsafe.models import CandidateRecord
+from targetsafe.models import CandidateRecord, EvidenceBundle
 from targetsafe.pipeline import PipelineConfig, run_pipeline
+from targetsafe.qsar import EvidenceWeightedQSAR
 from targetsafe.reference_drugs import known_context_for_smiles, reference_drugs
+from targetsafe.validation import build_qsar_validation_report
 
 
 class TargetSafePipelineTests(unittest.TestCase):
@@ -31,8 +33,16 @@ class TargetSafePipelineTests(unittest.TestCase):
         self.assertIn("rules", result.threshold_registry)
         self.assertIn("nodes", result.evidence_graph)
         self.assertIn("model_id", result.model_card)
+        self.assertEqual(result.evidence_mode["mode"], "offline_fallback")
+        self.assertGreaterEqual(result.redesign_report["created_children"], 1)
+        self.assertEqual(result.validation_report["status"], "insufficient_data")
+        self.assertTrue(result.agent_events)
+        phases = {event.phase for event in result.agent_events}
+        self.assertTrue({"Critique", "Replan", "Re-evaluate"} <= phases)
+        self.assertTrue(result.evaluation_report["acceptance_checks"]["redesign_children_have_parent"])
         statuses = {c.decision.final_status for c in result.candidates if c.decision}
         self.assertTrue({"Go", "Hold", "No-Go"} & statuses)
+        self.assertFalse(any(c.parent_candidate_id == "CTRL_NEG_INVALID" for c in result.candidates))
 
     def test_invalid_smiles_is_no_go(self) -> None:
         candidate = CandidateRecord(candidate_id="X", smiles="not-a-smiles", source="test")
@@ -81,6 +91,37 @@ class TargetSafePipelineTests(unittest.TestCase):
         self.assertIn("nearest_known_drugs", context)
         self.assertGreaterEqual(len(context["nearest_known_drugs"]), 3)
         self.assertIn("not candidate-specific toxicity", context["interpretation"])
+
+    def test_validation_metrics_are_only_created_with_enough_rows(self) -> None:
+        sparse_evidence = EvidenceBundle(target="EGFR", disease="test")
+        sparse_qsar = EvidenceWeightedQSAR(sparse_evidence)
+        sparse_report = build_qsar_validation_report(sparse_evidence, sparse_qsar)
+        self.assertEqual(sparse_report["status"], "insufficient_data")
+        self.assertEqual(sparse_report["metrics"], {})
+
+        analogs = generate_seed_analogs(
+            "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+            count=28,
+        )
+        activities = []
+        for index, candidate in enumerate(analogs):
+            activities.append(
+                {
+                    "molecule_chembl_id": f"SYN{index:03d}",
+                    "canonical_smiles": candidate.smiles,
+                    "pchembl_value": 6.1 + (index % 9) * 0.22,
+                    "source_status": "synthetic_live_like_test",
+                }
+            )
+        evidence = EvidenceBundle(target="EGFR", disease="synthetic validation", chembl_activities=activities)
+        qsar = EvidenceWeightedQSAR(evidence)
+        report = build_qsar_validation_report(evidence, qsar)
+        self.assertEqual(report["status"], "validated")
+        self.assertGreaterEqual(report["split_summary"]["train_count"], 4)
+        self.assertGreaterEqual(report["split_summary"]["test_count"], 3)
+        self.assertIn("rmse", report["metrics"])
+        self.assertIn("mae", report["metrics"])
+        self.assertIn("spearman", report["metrics"])
 
 
 if __name__ == "__main__":

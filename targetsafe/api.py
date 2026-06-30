@@ -123,6 +123,24 @@ def get_evidence_graph(run_id: str) -> dict[str, Any]:
     return payload.get("evidence_graph", {})
 
 
+@app.get("/api/runs/{run_id}/agent-trace")
+def get_agent_trace(run_id: str) -> list[dict[str, Any]]:
+    payload = get_run(run_id)
+    return payload.get("agent_events", [])
+
+
+@app.get("/api/runs/{run_id}/validation")
+def get_validation(run_id: str) -> dict[str, Any]:
+    payload = get_run(run_id)
+    return payload.get("validation_report", {})
+
+
+@app.get("/api/runs/{run_id}/redesign-report")
+def get_redesign_report(run_id: str) -> dict[str, Any]:
+    payload = get_run(run_id)
+    return payload.get("redesign_report", {})
+
+
 @app.get("/api/runs/{run_id}/candidates/{candidate_id}/known-context")
 def get_candidate_known_context(run_id: str, candidate_id: str) -> dict[str, Any]:
     payload = get_run(run_id)

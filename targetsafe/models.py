@@ -5,6 +5,20 @@ from typing import Any
 
 
 @dataclass
+class AgentEvent:
+    step: int
+    phase: str
+    agent: str
+    action: str
+    status: str
+    candidate_id: str | None = None
+    detail: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class ToolCallLog:
     source: str
     query: str
@@ -75,6 +89,10 @@ class CandidateRecord:
     candidate_id: str
     smiles: str
     source: str
+    parent_candidate_id: str | None = None
+    generation: int = 0
+    redesign_reason: str = ""
+    redesign_action: str = ""
     descriptors: DescriptorResult | None = None
     predicted_activity: float | None = None
     evidence_confidence: float = 0.0
@@ -93,6 +111,10 @@ class CandidateRecord:
             "candidate_id": self.candidate_id,
             "smiles": self.smiles,
             "source": self.source,
+            "parent_candidate_id": self.parent_candidate_id,
+            "generation": self.generation,
+            "redesign_reason": self.redesign_reason,
+            "redesign_action": self.redesign_action,
             "descriptors": self.descriptors.to_dict() if self.descriptors else None,
             "predicted_activity": self.predicted_activity,
             "evidence_confidence": self.evidence_confidence,
@@ -115,6 +137,7 @@ class PipelineResult:
     evidence: EvidenceBundle
     candidates: list[CandidateRecord]
     tool_logs: list[ToolCallLog]
+    agent_events: list[AgentEvent] = field(default_factory=list)
     report_path: str | None = None
     evaluation_report: dict[str, Any] = field(default_factory=dict)
     compute_profile: dict[str, Any] = field(default_factory=dict)
@@ -122,6 +145,9 @@ class PipelineResult:
     evidence_graph: dict[str, Any] = field(default_factory=dict)
     model_card: dict[str, Any] = field(default_factory=dict)
     ablation_report_path: str | None = None
+    redesign_report: dict[str, Any] = field(default_factory=dict)
+    validation_report: dict[str, Any] = field(default_factory=dict)
+    evidence_mode: dict[str, Any] = field(default_factory=dict)
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
@@ -130,6 +156,7 @@ class PipelineResult:
             "evidence": self.evidence.to_dict(),
             "candidates": [c.to_public_dict() for c in self.candidates],
             "tool_logs": [log.to_dict() for log in self.tool_logs],
+            "agent_events": [event.to_dict() for event in self.agent_events],
             "report_path": self.report_path,
             "evaluation_report": self.evaluation_report,
             "compute_profile": self.compute_profile,
@@ -137,4 +164,7 @@ class PipelineResult:
             "evidence_graph": self.evidence_graph,
             "model_card": self.model_card,
             "ablation_report_path": self.ablation_report_path,
+            "redesign_report": self.redesign_report,
+            "validation_report": self.validation_report,
+            "evidence_mode": self.evidence_mode,
         }

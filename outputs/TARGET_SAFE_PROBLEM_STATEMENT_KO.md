@@ -82,7 +82,29 @@ Target-SAFE의 molecular digital twin은 가짜 실험 시뮬레이션이 아니
 - Known Drugs & Risks에서 알려진 약물과 label-level risk를 맥락 정보로 확인한다.
 - Reports에서 model card, threshold registry, trace, report를 확인한다.
 
-## 8. 우리가 주장하지 않는 것
+## 8. Agentic AI와의 연결
+
+Target-SAFE의 agentic 요소는 “LLM이 분자를 상상해서 답한다”가 아니라, 여러 도구와 근거 계층을 호출하고 그 결과에 따라 다음 행동과 판정을 바꾸는 루프에 있다.
+
+- Planner Agent가 실행 계획을 만든다.
+- Evidence Agent가 공개 DB 또는 fallback evidence를 수집하고 evidence mode를 기록한다.
+- RDKit/QSAR evaluator가 구조, 물성, 예측 구간, 적용영역을 관찰한다.
+- Decision module이 source-backed threshold로 1차 Go/Hold/No-Go를 만든다.
+- Critic Agent가 out-of-domain, broad uncertainty, severe alert, fallback evidence, unsupported Go를 검토한다.
+- Critic finding이 있으면 Replan 단계에서 constrained redesign action을 선택한다.
+- Redesign Agent가 임의 SMILES 조작이 아니라 curated EGFR analog/template 기반 child candidate를 제안한다.
+- child candidate는 같은 descriptor, QSAR, threshold, critic 절차로 재평가된다.
+- Evidence Graph와 Reports는 이 과정을 agent event timeline과 parent/child comparison으로 남긴다.
+
+따라서 Target-SAFE는 단순 scoring table이 아니라 `Plan -> Act -> Observe -> Critique -> Replan -> Redesign -> Re-evaluate -> Decide` 흐름을 가진 evidence-gated triage agent로 설명할 수 있다.
+
+## 9. 과학적 검증과 솔직한 한계 표시
+
+Target-SAFE는 QSAR 예측을 최종 실험값처럼 쓰지 않는다. EGFR validation module은 ChEMBL/live evidence row와 known EGFR reference row를 정제해 충분한 구조/활성 데이터가 있을 때만 RMSE, MAE, Spearman, top-k enrichment, interval coverage, applicability-domain 안/밖 성능을 계산한다.
+
+데이터가 부족하면 `insufficient_data`로 표시하고 metric을 만들지 않는다. 이는 약점이 아니라 연구윤리와 심사 방어를 위한 설계다. 본선에서는 live ChEMBL evidence-grade mode를 통해 validation rows를 늘리고, model card와 `outputs/evaluation_metrics_egfr.json`에 결과를 남기는 방향으로 확장한다.
+
+## 10. 우리가 주장하지 않는 것
 
 Target-SAFE는 다음을 주장하지 않는다.
 

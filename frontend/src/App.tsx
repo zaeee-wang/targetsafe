@@ -299,6 +299,7 @@ export default function App() {
         {activeView === "twin" && (
           <CandidateTwin
             candidate={selected}
+            result={result}
             graph={result?.evidence_graph ?? null}
             moleculeView={moleculeView}
             knownContext={knownContext}
@@ -541,7 +542,7 @@ function RunConsole({
 
         <section className="status-deck">
           <Metric icon={<Cpu />} label={copy.console.computeProfile} value={profileLabel(profiles, request.compute_profile, copy)} />
-          <Metric icon={<TestTube2 />} label={copy.console.evidenceMode} value={request.allow_network ? copy.console.liveEnabled : copy.console.cachedDemo} />
+          <Metric icon={<TestTube2 />} label={copy.console.evidenceMode} value={evidenceModeLabel(result, request, copy)} />
           <Metric icon={<Network />} label={copy.console.evidenceGraph} value={result ? `${result.evidence_graph.summary.node_count} nodes` : copy.console.runPending} />
           <div className="status-strip">
             {STATUS_ORDER.map((status) => (
@@ -865,6 +866,7 @@ function MoleculeAtlas({
 
 function CandidateTwin({
   candidate,
+  result,
   graph,
   moleculeView,
   knownContext,
@@ -874,6 +876,7 @@ function CandidateTwin({
   onOpenGraph
 }: {
   candidate: Candidate | null;
+  result: PipelineResult | null;
   graph: EvidenceGraph | null;
   moleculeView: MoleculeView;
   knownContext: KnownContext | null;
@@ -891,6 +894,10 @@ function CandidateTwin({
   }
   const decision = candidate.decision;
   const desc = candidate.descriptors;
+  const redesignChildren = (result?.candidates ?? []).filter((item) => item.parent_candidate_id === candidate.candidate_id);
+  const parentCandidate = candidate.parent_candidate_id
+    ? (result?.candidates ?? []).find((item) => item.candidate_id === candidate.parent_candidate_id)
+    : null;
   return (
     <section className="view-frame twin-view">
       <div className="section-header">
@@ -963,6 +970,27 @@ function CandidateTwin({
           <ul className="compact-list">
             {(decision?.follow_up ?? []).slice(0, 4).map((item) => <li key={item}>{localizeBackendText(item, locale)}</li>)}
           </ul>
+        </section>
+        <section className="detail-block redesign-block">
+          <h3>{copy.twin.redesign}</h3>
+          {candidate.redesign_reason || parentCandidate ? (
+            <div className="redesign-summary">
+              {parentCandidate && <span>{copy.twin.parentCandidate}: {parentCandidate.candidate_id}</span>}
+              {candidate.redesign_reason && <span>{copy.twin.redesignReason}: {candidate.redesign_reason}</span>}
+              {candidate.redesign_action && <p>{candidate.redesign_action}</p>}
+            </div>
+          ) : redesignChildren.length ? (
+            <div className="redesign-summary">
+              <span>{copy.twin.childSuggestions}: {redesignChildren.map((child) => child.candidate_id).join(", ")}</span>
+              {redesignChildren.slice(0, 3).map((child) => (
+                <p key={child.candidate_id}>
+                  {child.candidate_id}: {child.redesign_reason} / {statusLabel(child.decision?.final_status ?? "Unscored", copy)}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p className="context-note">{copy.twin.noRedesign}</p>
+          )}
         </section>
       </div>
     </section>
@@ -1260,6 +1288,15 @@ function Reports({ result, copy, locale }: { result: PipelineResult | null; copy
       </div>
       <div className="reports-grid">
         <section className="report-panel">
+          <h3>{copy.reports.evidenceMode}</h3>
+          <dl className="model-dl">
+            <dt>{copy.reports.status}</dt>
+            <dd>{evidenceModeLabel(result, DEFAULT_REQUEST, copy)}</dd>
+            <dt>{copy.reports.sourceRequired}</dt>
+            <dd>{String(result?.evidence_mode?.interpretation ?? "-")}</dd>
+          </dl>
+        </section>
+        <section className="report-panel">
           <h3>{copy.reports.modelCard}</h3>
           <dl className="model-dl">
             <dt>{copy.reports.model}</dt>
@@ -1269,6 +1306,38 @@ function Reports({ result, copy, locale }: { result: PipelineResult | null; copy
             <dt>{copy.reports.applicability}</dt>
             <dd>{String((result?.model_card?.applicability_domain as Record<string, unknown> | undefined)?.method ?? "-")}</dd>
           </dl>
+        </section>
+        <section className="report-panel">
+          <h3>{copy.reports.scientificValidation}</h3>
+          <dl className="model-dl">
+            <dt>{copy.reports.validationStatus}</dt>
+            <dd>{String(result?.validation_report?.status ?? copy.console.runPending)}</dd>
+            <dt>{copy.reports.datasetSize}</dt>
+            <dd>{String(result?.validation_report?.dataset_size ?? "-")}</dd>
+            <dt>{copy.reports.split}</dt>
+            <dd>{String(result?.validation_report?.split_summary?.method ?? "-")}</dd>
+          </dl>
+          <div className="metric-list">
+            {Object.entries(result?.validation_report?.metrics ?? {}).slice(0, 6).map(([key, value]) => (
+              <span key={key}>{key}: {String(value)}</span>
+            ))}
+          </div>
+        </section>
+        <section className="report-panel">
+          <h3>{copy.reports.redesignReport}</h3>
+          <dl className="model-dl">
+            <dt>{copy.reports.redesignChildren}</dt>
+            <dd>{String(result?.redesign_report?.created_children ?? 0)}</dd>
+            <dt>{copy.reports.status}</dt>
+            <dd>{String(result?.redesign_report?.schema ?? "-")}</dd>
+          </dl>
+          <div className="metric-list">
+            {(result?.redesign_report?.comparisons ?? []).slice(0, 4).map((item, index) => (
+              <span key={index}>
+                {String(item["parent_candidate_id"] ?? "")} → {String(item["child_candidate_id"] ?? "")}: {String(item["reason"] ?? "")}
+              </span>
+            ))}
+          </div>
         </section>
         <section className="report-panel">
           <h3>{copy.reports.thresholdRegistry}</h3>
@@ -1285,7 +1354,13 @@ function Reports({ result, copy, locale }: { result: PipelineResult | null; copy
         <section className="report-panel">
           <h3>{copy.reports.agentTrace}</h3>
           <ol className="trace-list">
-            {(result?.plan ?? [copy.reports.pendingTrace]).map((step) => <li key={step}>{localizeBackendText(step, locale)}</li>)}
+            {result?.agent_events?.length ? result.agent_events.map((event) => (
+              <li key={`${event.step}-${event.phase}-${event.action}`}>
+                <strong>{event.step}. {event.phase}</strong>
+                <span>{event.agent} / {event.action} / {event.status}</span>
+                {event.candidate_id && <em>{event.candidate_id}</em>}
+              </li>
+            )) : <li>{copy.reports.pendingTrace}</li>}
           </ol>
         </section>
       </div>
@@ -1401,7 +1476,7 @@ function graphScopeIds(
 }
 
 function graphLayout(nodes: Array<Record<string, unknown> & { id: string; type: string; label?: string }>) {
-  const typeOrder = ["target", "disease", "candidate", "descriptor", "model_prediction", "decision", "known_analog", "threshold", "assay", "class_risk", "structural_alert"];
+  const typeOrder = ["target", "disease", "candidate", "redesign_action", "descriptor", "model_prediction", "decision", "known_analog", "threshold", "assay", "class_risk", "structural_alert"];
   const byType = new Map<string, typeof nodes>();
   for (const node of nodes) {
     const bucket = byType.get(node.type) ?? [];
@@ -1483,4 +1558,12 @@ function formatNumber(value: number | null | undefined, digits = 2) {
 function profileLabel(profiles: Array<Record<string, unknown>>, id: string, copy: Copy) {
   const profile = profiles.find((item) => item.id === id);
   return profile ? localizedProfile(profile, copy).label : id;
+}
+
+function evidenceModeLabel(result: PipelineResult | null, request: RunRequest, copy: Copy) {
+  const mode = result?.evidence_mode?.mode;
+  if (mode) {
+    return copy.console.evidenceModes[mode as keyof typeof copy.console.evidenceModes] ?? result?.evidence_mode?.label ?? mode;
+  }
+  return request.allow_network ? copy.console.liveEnabled : copy.console.cachedDemo;
 }

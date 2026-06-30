@@ -1,4 +1,4 @@
-import type { KnownContext, PipelineResult, ReferenceDrug, RunRequest, StructureDepiction } from "./types";
+import type { AgentEvent, KnownContext, PipelineResult, RedesignReport, ReferenceDrug, RunRequest, StructureDepiction, ValidationReport } from "./types";
 
 const API_BASE = import.meta.env.VITE_TARGETSAFE_API ?? "";
 
@@ -43,6 +43,30 @@ export async function fetchDepiction(smiles: string): Promise<StructureDepiction
   const response = await fetch(`${API_BASE}/api/depict?smiles=${encodeURIComponent(smiles)}`);
   if (!response.ok) {
     throw new Error("Unable to depict molecule.");
+  }
+  return response.json();
+}
+
+export async function fetchAgentTrace(runId: string): Promise<AgentEvent[]> {
+  const response = await fetch(`${API_BASE}/api/runs/${runId}/agent-trace`);
+  if (!response.ok) {
+    throw new Error("Unable to load agent trace.");
+  }
+  return response.json();
+}
+
+export async function fetchValidation(runId: string): Promise<ValidationReport> {
+  const response = await fetch(`${API_BASE}/api/runs/${runId}/validation`);
+  if (!response.ok) {
+    throw new Error("Unable to load validation report.");
+  }
+  return response.json();
+}
+
+export async function fetchRedesignReport(runId: string): Promise<RedesignReport> {
+  const response = await fetch(`${API_BASE}/api/runs/${runId}/redesign-report`);
+  if (!response.ok) {
+    throw new Error("Unable to load redesign report.");
   }
   return response.json();
 }

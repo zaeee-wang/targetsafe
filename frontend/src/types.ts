@@ -73,6 +73,10 @@ export interface Candidate {
   candidate_id: string;
   smiles: string;
   source: string;
+  parent_candidate_id: string | null;
+  generation: number;
+  redesign_reason: string;
+  redesign_action: string;
   descriptors: DescriptorResult | null;
   predicted_activity: number | null;
   evidence_confidence: number;
@@ -104,6 +108,46 @@ export interface EvidenceGraph {
   edges: Array<{ source: string; target: string; type: string; weight?: number }>;
 }
 
+export interface AgentEvent {
+  step: number;
+  phase: string;
+  agent: string;
+  action: string;
+  status: string;
+  candidate_id?: string | null;
+  detail: Record<string, unknown>;
+}
+
+export interface EvidenceMode {
+  mode: string;
+  label: string;
+  counts?: Record<string, number>;
+  cached_calls?: number;
+  live_calls?: number;
+  interpretation?: string;
+}
+
+export interface ValidationReport {
+  status?: string;
+  dataset_size?: number;
+  minimum_required_rows?: number;
+  model_type?: string;
+  interpretation?: string;
+  metrics?: Record<string, unknown>;
+  split_summary?: Record<string, unknown>;
+  applicability_domain_performance?: Record<string, unknown>;
+  outputs?: Record<string, string>;
+}
+
+export interface RedesignReport {
+  schema?: string;
+  iteration_limit?: number;
+  definition?: string;
+  created_children?: number;
+  comparisons?: Array<Record<string, unknown>>;
+  skipped?: Array<Record<string, unknown>>;
+}
+
 export interface PipelineResult {
   run_id: string;
   plan: string[];
@@ -119,10 +163,12 @@ export interface PipelineResult {
   };
   candidates: Candidate[];
   tool_logs: Array<Record<string, unknown>>;
+  agent_events: AgentEvent[];
   report_path: string | null;
   evaluation_report: {
     status_counts?: Record<Status, number>;
     acceptance_checks?: Record<string, boolean>;
+    redesign_child_count?: number;
   };
   compute_profile: Record<string, unknown>;
   threshold_registry: {
@@ -133,6 +179,9 @@ export interface PipelineResult {
   evidence_graph: EvidenceGraph;
   model_card: Record<string, unknown>;
   ablation_report_path: string | null;
+  redesign_report: RedesignReport;
+  validation_report: ValidationReport;
+  evidence_mode: EvidenceMode;
 }
 
 export interface RunRequest {

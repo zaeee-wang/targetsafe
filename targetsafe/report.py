@@ -35,6 +35,8 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
             "<tr>"
             f"<td>{html_escape(c.candidate_id)}</td>"
             f"<td>{html_escape(d.final_status if d else '')}</td>"
+            f"<td>{html_escape(c.parent_candidate_id or '')}</td>"
+            f"<td>{html_escape(c.redesign_reason)}</td>"
             f"<td>{score}</td>"
             f"<td>{activity}</td>"
             f"<td>{lower}</td>"
@@ -62,6 +64,7 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
     th {{ background: #f1f5f9; text-align: left; }}
     code {{ word-break: break-all; white-space: normal; }}
     .note {{ background: #fff7ed; border-left: 4px solid #f97316; padding: 12px; }}
+    .badge {{ display: inline-block; border-radius: 999px; padding: 6px 10px; background: #f1f5f9; }}
     .grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }}
     .box {{ border: 1px solid #d8dee9; padding: 12px; background: #fbfcff; }}
   </style>
@@ -78,14 +81,19 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
     <div class="box"><b>Status counts</b><br>{html_escape(status_counts)}</div>
     <div class="box"><b>Evidence graph</b><br>{html_escape((result.evidence_graph or {}).get("summary", {}))}</div>
     <div class="box"><b>QSAR model</b><br>{html_escape((result.model_card or {}).get("model_id", ""))}</div>
+    <div class="box"><b>Evidence mode</b><br><span class="badge">{html_escape((result.evidence_mode or {}).get("label", ""))}</span><br>{html_escape((result.evidence_mode or {}).get("interpretation", ""))}</div>
+    <div class="box"><b>Validation status</b><br><span class="badge">{html_escape((result.validation_report or {}).get("status", ""))}</span><br>{html_escape((result.validation_report or {}).get("interpretation", ""))}</div>
+    <div class="box"><b>Redesign loop</b><br>{html_escape((result.redesign_report or {}).get("created_children", 0))} child suggestions</div>
   </div>
+  <h2>Agentic Trace</h2>
+  <pre>{html_escape(json.dumps([event.to_dict() for event in result.agent_events], indent=2))}</pre>
   <h2>Agent Plan</h2>
   <ol>{''.join(f'<li>{html_escape(step)}</li>' for step in result.plan)}</ol>
   <h2>Candidate Decisions</h2>
   <table>
     <thead>
       <tr>
-        <th>ID</th><th>Status</th><th>Support</th><th>Pred pChEMBL</th><th>Lower</th><th>Evidence</th>
+        <th>ID</th><th>Status</th><th>Parent</th><th>Redesign reason</th><th>Support</th><th>Pred pChEMBL</th><th>Lower</th><th>Evidence</th>
         <th>QED</th><th>LogP</th><th>SA</th><th>Alerts</th><th>SMILES</th><th>Reasons</th>
         <th>Criteria</th>
       </tr>
@@ -96,6 +104,10 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
   <pre>{html_escape(json.dumps(result.threshold_registry, indent=2))}</pre>
   <h2>Model Card</h2>
   <pre>{html_escape(json.dumps(result.model_card, indent=2))}</pre>
+  <h2>QSAR Validation</h2>
+  <pre>{html_escape(json.dumps(result.validation_report, indent=2))}</pre>
+  <h2>Critic Redesign Report</h2>
+  <pre>{html_escape(json.dumps(result.redesign_report, indent=2))}</pre>
   <h2>Class-Level Clinical/Regulatory Risk Checklist</h2>
   <ul>{''.join(f'<li><b>{html_escape(r.get("risk", ""))}</b>: {html_escape(r.get("interpretation", ""))}</li>' for r in result.evidence.regulatory_risks)}</ul>
   <h2>Tool Trace</h2>

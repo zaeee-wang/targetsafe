@@ -22,6 +22,10 @@ The earlier MVP was useful but too close to a rule-based table. This version add
 - Scoped evidence graph view to avoid unreadable all-node label overlap.
 - Threshold registry with source/rationale for every decision gate.
 - Analog-supported EGFR QSAR with prediction interval and applicability domain.
+- Agentic trace with `Plan -> Act -> Observe -> Critique -> Replan -> Redesign -> Re-evaluate -> Decide` events.
+- Critic-triggered constrained redesign loop with parent/child candidate comparison.
+- EGFR QSAR validation outputs that report metrics only when enough structure/activity rows exist.
+- Evidence mode badges that distinguish offline fallback, live, cached, mixed, and error fallback evidence.
 - GraphRAG-lite evidence graph.
 - Model card, ablation report, HTML report, and JSON outputs.
 - Streamlit fallback demo.
@@ -50,10 +54,10 @@ Main UI sections:
 - `Run Console`: configure and start a triage run.
 - `Seed Molecule Drawer`: choose EGFR reference seeds, general drug-like controls, or negative/stress controls with structure previews.
 - `Molecule Atlas`: inspect up to 96 candidate previews and public/reference-drug structures.
-- `Candidate Twin`: inspect one candidate in 2D/3D with decision rationale and XYZ export.
+- `Candidate Twin`: inspect one candidate in 2D/3D with decision rationale, critic redesign context, and XYZ export.
 - `Evidence Graph`: zoom and pan through scoped graph-grounded evidence.
 - `Known Drugs & Risks`: review known EGFR TKI structures, label-level risk context, and a broader public drug atlas.
-- `Reports`: model card, threshold registry, trace, and HTML report.
+- `Reports`: evidence mode, scientific validation, model card, threshold registry, agentic trace, redesign report, and HTML report.
 
 ## Backup Streamlit Demo
 
@@ -89,6 +93,9 @@ Generated outputs are written to `outputs/`:
 - `threshold_registry.json`
 - `evidence_graph.json`
 - `ablation_report.html`
+- `evaluation_metrics_egfr.json`
+- `qsar_validation_report.html`
+- `scaffold_split_summary.json`
 - `*_targetsafe_report.html`
 - `*_result.json`
 
@@ -108,6 +115,9 @@ User-facing guide:
 - `POST /api/runs`
 - `GET /api/runs/{run_id}`
 - `GET /api/runs/{run_id}/evidence-graph`
+- `GET /api/runs/{run_id}/agent-trace`
+- `GET /api/runs/{run_id}/validation`
+- `GET /api/runs/{run_id}/redesign-report`
 - `GET /api/runs/{run_id}/candidates/{candidate_id}/known-context`
 - `GET /api/runs/{run_id}/report`
 - `GET /api/model-card/egfr`
@@ -118,3 +128,5 @@ User-facing guide:
 Target-SAFE is a decision-support artifact. Generated candidates, predicted activity, conformers, and graph explanations require medicinal chemistry review and experimental confirmation. Clinical and regulatory signals are class-level context only.
 
 EGFR is the scored scientific pilot. Other target families can be shown in the public drug atlas, but Go/Hold/No-Go scoring should not be reused for non-EGFR targets until target-specific assay evidence, applicability-domain checks, and thresholds are added.
+
+GPU and LLM lanes are optional enhancers, not final decision makers. The final Go/Hold/No-Go decision is grounded in descriptors, analog evidence, applicability-domain checks, sourced thresholds, evidence graph support, and Critic Agent review. If validation data are insufficient, Target-SAFE reports `insufficient_data` rather than fabricating model metrics.

@@ -1273,6 +1273,22 @@ label,
   line-height: 1.55;
 }
 
+.trace-list strong,
+.trace-list span,
+.trace-list em {
+  display: block;
+}
+
+.trace-list strong {
+  color: var(--text);
+}
+
+.trace-list em {
+  color: var(--primary);
+  font-style: normal;
+  font-size: 12px;
+}
+
 .criteria-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1366,6 +1382,28 @@ label,
   padding: 24px;
 }
 
+.redesign-summary {
+  display: grid;
+  gap: 10px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.redesign-summary span {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 11px;
+  color: var(--text);
+  background: var(--panel-2);
+}
+
+.redesign-summary p {
+  margin: 0;
+}
+
 .analog-list {
   display: flex;
   flex-wrap: wrap;
@@ -1436,7 +1474,9 @@ label,
 }
 
 .edge.requires_review,
-.edge.weakens {
+.edge.weakens,
+.edge.critic_triggers,
+.edge.redesigns {
   stroke: color-mix(in srgb, var(--amber) 90%, transparent);
 }
 
@@ -1451,7 +1491,8 @@ label,
 }
 
 .node.structural_alert,
-.node.class_risk {
+.node.class_risk,
+.node.redesign_action {
   stroke: var(--amber);
 }
 
@@ -1578,6 +1619,22 @@ label,
 .threshold-list {
   display: grid;
   gap: 10px;
+}
+
+.metric-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.metric-list span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: var(--muted);
+  background: var(--panel-2);
+  overflow-wrap: anywhere;
 }
 
 .threshold-list div {

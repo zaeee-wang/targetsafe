@@ -91,6 +91,7 @@ def _add_candidate_subgraph(
     prediction_id = f"prediction_{candidate.candidate_id}"
     decision_id = f"decision_{candidate.candidate_id}"
     alert_id = f"alert_{candidate.candidate_id}"
+    redesign_node_ids: list[str] = []
 
     nodes.append(
         {
@@ -99,6 +100,10 @@ def _add_candidate_subgraph(
             "label": candidate.candidate_id,
             "smiles": candidate.smiles,
             "status": decision.final_status if decision else "Unscored",
+            "generation": candidate.generation,
+            "parent_candidate_id": candidate.parent_candidate_id,
+            "redesign_reason": candidate.redesign_reason,
+            "redesign_action": candidate.redesign_action,
         }
     )
     nodes.append(
@@ -137,6 +142,27 @@ def _add_candidate_subgraph(
             {"source": decision_id, "target": candidate_id, "type": "classifies", "weight": 1.0},
         ]
     )
+
+    if candidate.parent_candidate_id:
+        parent_id = f"candidate_{candidate.parent_candidate_id}"
+        redesign_id = f"redesign_{candidate.candidate_id}"
+        redesign_node_ids = [parent_id, redesign_id]
+        nodes.append(
+            {
+                "id": redesign_id,
+                "type": "redesign_action",
+                "label": candidate.redesign_reason or "critic redesign",
+                "action": candidate.redesign_action,
+                "parent_candidate_id": candidate.parent_candidate_id,
+                "child_candidate_id": candidate.candidate_id,
+            }
+        )
+        edges.extend(
+            [
+                {"source": parent_id, "target": redesign_id, "type": "critic_triggers", "weight": 0.95},
+                {"source": redesign_id, "target": candidate_id, "type": "redesigns", "weight": 0.95},
+            ]
+        )
 
     if desc and (desc.alerts or desc.severe_alerts):
         nodes.append(
@@ -188,7 +214,7 @@ def _add_candidate_subgraph(
                     "weight": float(analog.get("similarity") or 0.0),
                 }
             )
-        candidate.evidence_node_ids = [candidate_id, descriptor_id, prediction_id, decision_id]
+        candidate.evidence_node_ids = [candidate_id, descriptor_id, prediction_id, decision_id] + redesign_node_ids
         decision.evidence_node_ids = candidate.evidence_node_ids
         _attach_molecular_twin(candidate, candidate_id, descriptor_id, prediction_id, decision_id)
 
@@ -236,6 +262,12 @@ def _attach_molecular_twin(
             "Evidence": {
                 "evidence_confidence": candidate.evidence_confidence,
                 "node_ids": candidate.evidence_node_ids,
+            },
+            "Redesign": {
+                "parent_candidate_id": candidate.parent_candidate_id,
+                "generation": candidate.generation,
+                "reason": candidate.redesign_reason,
+                "action": candidate.redesign_action,
             },
             "Decision": {
                 "node_id": decision_id,

@@ -48,7 +48,15 @@ export const COPY = {
       liveEnabled: "Live APIs enabled",
       cachedDemo: "Cached/fallback demo",
       evidenceGraph: "Evidence graph",
-      runPending: "Run pending"
+      runPending: "Run pending",
+      evidenceModes: {
+        offline_fallback: "Offline fallback demo",
+        live: "Live public evidence",
+        cached: "Cached public evidence",
+        mixed: "Mixed evidence",
+        error_fallback: "API error fallback",
+        unknown: "Unknown evidence mode"
+      }
     },
     seedDrawer: {
       open: "Browse seed library",
@@ -157,7 +165,13 @@ export const COPY = {
       knownContext: "Known-drug context",
       contextPending: "Known-drug context loads after a run.",
       sim: "sim",
-      nextValidation: "Next validation"
+      nextValidation: "Next validation",
+      redesign: "Critic redesign",
+      parentCandidate: "Parent candidate",
+      childSuggestions: "Child suggestions",
+      redesignReason: "Reason",
+      redesignAction: "Action",
+      noRedesign: "No redesign suggestion for this candidate."
     },
     conformer: {
       unavailable: "3D conformer unavailable",
@@ -206,13 +220,24 @@ export const COPY = {
       heading: "Model card, threshold registry, trace, and report.",
       openReport: "Open HTML report",
       modelCard: "Model card",
+      evidenceMode: "Evidence mode",
+      scientificValidation: "Scientific validation",
+      validationStatus: "Validation status",
+      datasetSize: "Dataset size",
+      split: "Split",
+      metrics: "Metrics",
+      redesignReport: "Critic redesign loop",
+      redesignChildren: "child suggestions",
       model: "Model",
       trainingSize: "Training size",
       applicability: "Applicability",
       thresholdRegistry: "Threshold registry",
       sourceRequired: "source required",
       agentTrace: "Agent trace",
-      pendingTrace: "Run triage to create an agent trace."
+      pendingTrace: "Run triage to create an agent trace.",
+      phase: "Phase",
+      action: "Action",
+      status: "Status"
     },
     status: {
       Go: "Go",
@@ -285,7 +310,15 @@ export const COPY = {
       liveEnabled: "Live API 사용",
       cachedDemo: "캐시/폴백 데모",
       evidenceGraph: "근거 그래프",
-      runPending: "실행 대기"
+      runPending: "실행 대기",
+      evidenceModes: {
+        offline_fallback: "오프라인 폴백 데모",
+        live: "Live 공개 근거",
+        cached: "캐시된 공개 근거",
+        mixed: "혼합 근거",
+        error_fallback: "API 오류 폴백",
+        unknown: "알 수 없는 근거 모드"
+      }
     },
     seedDrawer: {
       open: "Seed 라이브러리 열기",
@@ -394,7 +427,13 @@ export const COPY = {
       knownContext: "기존 약물 맥락",
       contextPending: "실행 후 기존 약물 맥락이 로드됩니다.",
       sim: "유사도",
-      nextValidation: "다음 검증"
+      nextValidation: "다음 검증",
+      redesign: "Critic 재설계",
+      parentCandidate: "부모 후보",
+      childSuggestions: "자식 제안",
+      redesignReason: "이유",
+      redesignAction: "행동",
+      noRedesign: "이 후보에는 재설계 제안이 없습니다."
     },
     conformer: {
       unavailable: "3D conformer 사용 불가",
@@ -443,13 +482,24 @@ export const COPY = {
       heading: "모델 카드, threshold registry, agent trace, HTML 보고서.",
       openReport: "HTML 보고서 열기",
       modelCard: "모델 카드",
+      evidenceMode: "근거 모드",
+      scientificValidation: "과학적 검증",
+      validationStatus: "검증 상태",
+      datasetSize: "데이터 크기",
+      split: "Split",
+      metrics: "지표",
+      redesignReport: "Critic 재설계 루프",
+      redesignChildren: "개 자식 제안",
       model: "모델",
       trainingSize: "학습 크기",
       applicability: "적용영역",
       thresholdRegistry: "Threshold registry",
       sourceRequired: "출처 필요",
       agentTrace: "Agent trace",
-      pendingTrace: "Triage를 실행하면 agent trace가 생성됩니다."
+      pendingTrace: "Triage를 실행하면 agent trace가 생성됩니다.",
+      phase: "단계",
+      action: "행동",
+      status: "상태"
     },
     status: {
       Go: "Go",
