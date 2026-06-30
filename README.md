@@ -1,65 +1,94 @@
-# Target-SAFE Lead Agent
+# Target-SAFE Molecular Evidence Digital Twin
 
-Evidence-gated lead triage MVP for the 4th JUMP AI Agentic Drug Challenge.
+Target-SAFE is an evidence-gated lead triage platform for the 4th JUMP AI Agentic Drug Challenge. The EGFR mutation-positive NSCLC pilot classifies seed-derived lead candidates as `Go`, `Hold`, or `No-Go` while showing the molecular structure, descriptor risks, predicted activity interval, applicability domain, external evidence, critic findings, and next validation steps.
 
-## Problem And Contribution
+The project does **not** claim that AI invented a drug. It demonstrates how an agentic system can narrow early lead-review scope with transparent, reproducible evidence.
 
-The initial project idea was a broad multi-agent molecule optimization system.
-That direction is useful, but it can look similar to many "LLM + RDKit +
-ChEMBL + ADMET + report" demos and can overclaim what virtual candidates mean.
+## What Changed
 
-Target-SAFE narrows the contribution: it is not a system that claims to invent
-a drug. It is an evidence-gated triage agent that helps researchers decide
-which early lead candidates should be advanced, held for more evidence, or
-rejected. The program contributes a transparent `Go / Hold / No-Go` workflow
-with hard gates, evidence confidence, applicability-domain checks, critic
-findings, and reproducible logs.
+The earlier MVP was useful but too close to a rule-based table. This version adds:
 
-The app focuses on EGFR-mutant NSCLC and classifies seed-derived candidates as
-`Go`, `Hold`, or `No-Go` using transparent tool-grounded evidence:
+- React + TypeScript molecular digital twin UI.
+- FastAPI backend.
+- CPU/GPU/API compute profile selector.
+- RDKit 2D structure depiction and optional computed conformer view.
+- Threshold registry with source/rationale for every decision gate.
+- Analog-supported EGFR QSAR with prediction interval and applicability domain.
+- GraphRAG-lite evidence graph.
+- Model card, ablation report, HTML report, and JSON outputs.
+- Streamlit fallback demo.
 
-- optional RDKit chemistry descriptors and alerts
-- ChEMBL/PubChem/ClinicalTrials.gov/openFDA API clients with SQLite cache
-- deterministic QSAR-like confidence and applicability-domain scoring
-- hard gates before weighted ranking
-- critic findings and an HTML report
-
-The core pipeline runs without local GPU and without optional packages. If
-RDKit or Streamlit are unavailable, the project falls back to deterministic
-heuristics so the demo and tests still work.
-
-## Run
-
-```powershell
-python -m unittest discover -s tests
-python app.py
-```
-
-For the dashboard, install dependencies and run:
+## Run Backend
 
 ```powershell
 pip install -r requirements.txt
+uvicorn targetsafe.api:app --reload
+```
+
+The API runs at `http://127.0.0.1:8000`.
+
+## Run React Frontend
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend runs at `http://127.0.0.1:5173` and proxies `/api` to the FastAPI backend.
+
+## Backup Streamlit Demo
+
+```powershell
 streamlit run app.py
 ```
 
-## Optional LLM API
+If Streamlit is unavailable, `python app.py` runs a CLI demo.
 
-Set these environment variables to let Planner/Critic/Report use an
-OpenAI-compatible chat completions endpoint:
+## Test
 
 ```powershell
-$env:OPENAI_API_KEY="..."
-$env:OPENAI_BASE_URL="https://api.openai.com/v1"
-$env:OPENAI_MODEL="gpt-4.1-mini"
+python -m unittest discover -s tests
+cd frontend
+npm run build
 ```
 
-The deterministic pipeline works without these variables.
+## Compute Profiles
 
-## Deliverables
+- `CPU demo`: stable offline demo with fallback evidence.
+- `CPU evidence-grade`: live public API evidence refresh.
+- `GPU accelerated`: optional GPU path with graceful CPU fallback.
+- `API assisted`: optional LLM/report support.
+- `Full research mode`: live evidence + optional GPU + optional LLM.
 
-- Implementation guide: `outputs/TARGET_SAFE_IMPLEMENTATION_GUIDE.md`
-- Program bundle: `outputs/targetsafe_program_bundle.zip`
+GPU and LLM are optional. The core pipeline works without either.
 
-Generated run reports such as `outputs/targetsafe_*_result.json` and
-`outputs/targetsafe_*_targetsafe_report.html` are demo artifacts and are not
-intended to be committed.
+## Outputs
+
+Generated outputs are written to `outputs/`:
+
+- `model_card_egfr.json`
+- `threshold_registry.json`
+- `evidence_graph.json`
+- `ablation_report.html`
+- `*_targetsafe_report.html`
+- `*_result.json`
+
+User-facing guide:
+
+- `outputs/TARGET_SAFE_IMPLEMENTATION_GUIDE.md`
+
+## API
+
+- `GET /api/health`
+- `GET /api/compute-profiles`
+- `POST /api/runs`
+- `GET /api/runs/{run_id}`
+- `GET /api/runs/{run_id}/evidence-graph`
+- `GET /api/runs/{run_id}/report`
+- `GET /api/model-card/egfr`
+- `GET /api/thresholds`
+
+## Safety And Scope
+
+Target-SAFE is a decision-support artifact. Generated candidates, predicted activity, conformers, and graph explanations require medicinal chemistry review and experimental confirmation. Clinical and regulatory signals are class-level context only.

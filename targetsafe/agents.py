@@ -8,6 +8,7 @@ from typing import Any
 from targetsafe.data_sources import PublicDataSources
 from targetsafe.decision import decide_candidate
 from targetsafe.models import CandidateRecord, DecisionResult, EvidenceBundle
+from targetsafe.thresholds import ThresholdRegistry
 
 
 class LLMClient:
@@ -52,10 +53,10 @@ class PlannerAgent:
             "Collect EGFR activity and class-level clinical/regulatory evidence.",
             "Generate seed-derived analog candidates and remove duplicates.",
             "Calculate descriptors, drug-likeness, structural alerts, and SA score.",
-            "Estimate activity, evidence confidence, and applicability domain.",
-            "Apply hard gates before weighted ranking.",
+            "Estimate conservative activity interval, evidence confidence, nearest analogs, and applicability domain.",
+            "Apply sourced hard gates before Go/Hold/No-Go triage.",
             "Run critic review for invalid structures, alerts, weak evidence, and overclaiming.",
-            "Produce Go/Hold/No-Go table, trace log, and HTML report.",
+            "Produce molecular twin view, evidence graph, trace log, and HTML report.",
         ]
         prompt = (
             f"Disease: {disease}\nTarget: {target}\nGoal: {optimization_goal}\n"
@@ -77,22 +78,24 @@ class EvidenceAgent:
 
 
 class CriticAgent:
-    def __init__(self, enabled: bool = True) -> None:
+    def __init__(self, enabled: bool = True, thresholds: ThresholdRegistry | None = None) -> None:
         self.enabled = enabled
+        self.thresholds = thresholds or ThresholdRegistry()
 
     def review(self, candidate: CandidateRecord) -> DecisionResult:
         if candidate.decision is None:
-            candidate.decision = decide_candidate(candidate)
+            candidate.decision = decide_candidate(candidate, self.thresholds)
         decision = candidate.decision
         if not self.enabled:
             return decision
 
         findings: list[str] = []
         desc = candidate.descriptors
+        evidence_threshold = self.thresholds.get("evidence_confidence_min_for_go").value
         if not desc or not desc.valid:
             findings.append("Critic: invalid structure cannot be triaged as a lead candidate.")
         else:
-            if decision.final_status == "Go" and candidate.evidence_confidence < 0.45:
+            if decision.final_status == "Go" and candidate.evidence_confidence < evidence_threshold:
                 findings.append("Critic: downgraded Go to Hold because evidence confidence is weak.")
                 decision.final_status = "Hold"
             if decision.final_status == "Go" and not candidate.in_applicability_domain:
@@ -106,7 +109,7 @@ class CriticAgent:
                 if decision.final_status == "Go":
                     findings.append("Critic: downgraded Go to Hold until RDKit descriptors confirm the profile.")
                     decision.final_status = "Hold"
-            if candidate.predicted_activity is not None and candidate.predicted_activity > 8.5:
+            if candidate.predicted_activity is not None and (candidate.prediction_interval or {}).get("lower", 0.0) < candidate.predicted_activity:
                 findings.append("Critic: high predicted activity is a ranking aid, not an experimentally verified claim.")
 
         decision.critic_findings.extend(findings)

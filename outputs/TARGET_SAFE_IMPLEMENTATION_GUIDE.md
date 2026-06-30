@@ -1,238 +1,222 @@
-# Target-SAFE Lead Agent Implementation Guide
+# Target-SAFE Molecular Evidence Digital Twin Implementation Guide
 
-## 1. Problem Recognized
+## 1. 해결하려는 문제
 
-The original idea was a broad multi-agent molecule generation system. It was
-well aligned with the hackathon theme, but it had three serious risks:
+The original concept was a broad autonomous lead-optimization agent. That was aligned with the competition theme, but it had a serious evaluation risk: it could look like another "LLM + RDKit + ChEMBL + report" demo and could overclaim generated molecules without enough experimental evidence.
 
-- It could look like a familiar combination of LLM agents, RDKit, ChEMBL,
-  PubChem, ADMET filters, and a report generator.
-- It could overclaim candidate-level clinical or regulatory meaning even
-  though new virtual candidates do not have direct clinical evidence.
-- It could rank molecules by a single weighted score even when a candidate has
-  invalid structure, toxic alerts, weak evidence, or poor applicability-domain
-  support.
+Target-SAFE reframes the contribution as **evidence-gated lead triage**. It does not claim to invent a drug. It helps a researcher inspect seed-derived EGFR candidates and decide whether each one should be advanced, held for more evidence, or rejected.
 
-Target-SAFE reframes the project from "AI invents molecules" to
-"AI narrows early lead-review scope with transparent evidence-gated triage."
-This is the practical contribution: it helps researchers reject, hold, or
-prioritize candidates with traceable reasons instead of producing unsupported
-drug-discovery claims.
+## 2. 기존안의 문제점과 변경 방향
 
-## 2. Competition-Based Contribution
+Before:
 
-The 4th JUMP AI Agentic Drug Challenge rewards problem definition, agentic
-planning, tool use, scientific validity, implementation feasibility, and
-transparent demonstration. Target-SAFE contributes to those criteria as follows:
+- Molecules were ranked by fixed weighted scores.
+- QSAR-like activity was heuristic and not sufficiently explainable.
+- UI was mostly a Streamlit table, useful but not memorable for judging.
+- GPU/API usage was implicit rather than user-selectable.
+- Evidence existed, but it was not represented as a decision graph.
 
-- It defines a narrow, realistic drug-discovery problem: early EGFR lead
-  triage for EGFR-mutant NSCLC.
-- It uses agents for planning, evidence collection, criticism, and reporting
-  rather than only chat-style explanation.
-- It grounds decisions in deterministic tools and public evidence instead of
-  LLM-only reasoning.
-- It treats clinical and regulatory evidence as class-level risk context, not
-  as candidate-specific proof.
-- It exposes uncertainty and downgrades weak candidates to Hold or No-Go.
-- It runs without local GPU and without optional dependencies, while still
-  benefiting from RDKit, Streamlit, and LLM APIs when they are available.
+After:
 
-## 3. Final System Overview
+- Fixed weights are replaced by sourced threshold gates and conservative interval checks.
+- Every threshold is recorded in `outputs/threshold_registry.json`.
+- Each candidate has a molecular evidence twin: structure, descriptors, activity interval, applicability domain, analogs, evidence, decision, and next validation.
+- Evidence is represented as a GraphRAG-lite decision graph in `outputs/evidence_graph.json`.
+- Compute profiles make CPU/GPU/API tradeoffs explicit.
+- React provides the main judging interface; Streamlit remains as fallback.
 
-Target-SAFE is an Evidence-Gated Lead Triage Agent. Given disease, target,
-seed SMILES, and an optimization goal, it generates seed-derived candidates and
-classifies each one as `Go`, `Hold`, or `No-Go`.
+## 3. 최종 시스템 개요
 
-The current MVP is focused on EGFR-mutant NSCLC. It is designed so the target
-can be extended later, but the first implementation intentionally avoids a
-wide unfocused scope.
+Target-SAFE is a full-stack molecular triage platform for the EGFR mutation-positive NSCLC pilot.
 
-Primary outputs:
+Main capabilities:
 
-- candidate table
-- descriptor and risk table
-- Go/Hold/No-Go decision table
-- tool-call logs
-- critic findings
-- HTML report
-- JSON result
-- packaged program bundle
+- Generate seed-derived analog candidates.
+- Compute RDKit/fallback descriptors and molecular depictions.
+- Estimate EGFR activity with analog-supported QSAR and prediction intervals.
+- Track applicability domain and nearest known analogs.
+- Apply sourced Go/Hold/No-Go gates.
+- Build a candidate-centered evidence graph.
+- Render a React molecular digital twin UI.
+- Export model card, threshold registry, evidence graph, ablation report, HTML report, and JSON results.
 
-## 4. Architecture
+## 4. 아키텍처
 
 ```mermaid
 flowchart TD
-    A["User input: disease, target, seed SMILES, goal"] --> B["Planner Agent"]
-    B --> C["Evidence Agent"]
-    C --> D["PublicDataSources + SQLite cache"]
-    D --> E["EvidenceBundle"]
-    B --> F["Molecular Candidate Generator"]
-    F --> G["Property & Safety Evaluator"]
-    G --> H["QSAR-like evidence confidence module"]
-    H --> I["Hard Gate + Decision Module"]
-    I --> J["Critic Agent"]
-    J --> K["Go / Hold / No-Go table"]
-    K --> L["HTML report + JSON result"]
+    UI["React Molecular Evidence Twin UI"] --> API["FastAPI backend"]
+    API --> Pipeline["Target-SAFE pipeline"]
+    Pipeline --> Planner["Planner Agent"]
+    Pipeline --> Evidence["Evidence Agent"]
+    Evidence --> Sources["ChEMBL / ClinicalTrials.gov / openFDA / cache"]
+    Pipeline --> Chem["RDKit descriptor + 2D/3D structure"]
+    Pipeline --> QSAR["EGFR analog-supported QSAR"]
+    Pipeline --> Thresholds["ThresholdRegistry"]
+    Pipeline --> Graph["GraphRAG-lite evidence graph"]
+    Thresholds --> Decision["Go / Hold / No-Go decision"]
+    QSAR --> Decision
+    Graph --> Decision
+    Decision --> Critic["Critic Agent"]
+    Critic --> Report["HTML report + digital twin payload"]
 ```
 
-Important modules:
+Key modules:
 
-- `app.py`: Streamlit entrypoint. If Streamlit is unavailable, it runs a CLI
-  demo.
+- `targetsafe/api.py`: FastAPI entrypoint.
 - `targetsafe/pipeline.py`: end-to-end orchestration.
-- `targetsafe/agents.py`: Planner, Evidence, Critic, Report agents and an
-  optional OpenAI-compatible LLM client.
-- `targetsafe/chem.py`: candidate generation, descriptor calculation, optional
-  RDKit path, and deterministic heuristic fallback.
-- `targetsafe/data_sources.py`: ChEMBL, ClinicalTrials.gov, openFDA clients
-  with fallback evidence and SQLite cache.
-- `targetsafe/qsar.py`: reference-scaffold similarity, predicted activity,
-  evidence confidence, and applicability-domain scoring.
-- `targetsafe/decision.py`: hard gates, weighted score, and final decision.
-- `targetsafe/report.py`: HTML report generation.
-- `targetsafe/cache.py`: SQLite cache for public API responses.
+- `targetsafe/compute_profiles.py`: CPU/GPU/API execution profiles.
+- `targetsafe/thresholds.py`: sourced threshold registry.
+- `targetsafe/qsar.py`: analog-supported EGFR QSAR, interval, applicability domain, model card.
+- `targetsafe/evidence_graph.py`: GraphRAG-lite evidence graph and molecular twin payload.
+- `targetsafe/chem.py`: descriptors, 2D depiction, optional computed conformer.
+- `frontend/`: Vite + React + TypeScript judging UI.
 
-## 5. Program Pipeline
+## 5. 프로그램 파이프라인
 
-1. The user enters disease, target, seed SMILES, and optimization goal.
-2. Planner Agent creates a cautious execution plan.
-3. Evidence Agent collects public evidence from ChEMBL, ClinicalTrials.gov,
-   and openFDA.
-4. If network access fails or is disabled, fallback evidence is used and logged.
-5. The candidate generator creates at least 50 seed-derived analog candidates.
-6. The evaluator calculates validity, MW, LogP, TPSA, HBD, HBA, rotatable
-   bonds, QED, Lipinski violations, alerts, and SA score.
-7. RDKit is used when installed. Otherwise, deterministic heuristics are used.
-8. The QSAR-like module estimates predicted activity, evidence confidence, and
-   applicability-domain support.
-9. The Decision Module applies hard gates before any weighted ranking.
-10. Critic Agent checks invalid structures, severe alerts, weak evidence,
-    out-of-domain candidates, and heuristic-only descriptors.
-11. Each candidate is classified as `Go`, `Hold`, or `No-Go`.
-12. The pipeline writes an HTML report and JSON result under `outputs/`.
+1. User selects disease, target, seed SMILES, candidate count, and compute profile.
+2. Planner Agent creates a cautious run plan.
+3. Evidence Agent retrieves ChEMBL, ClinicalTrials.gov, and openFDA evidence or uses fallback data.
+4. Candidate generator creates seed-derived analogs and controls.
+5. RDKit evaluator validates SMILES, computes descriptors, creates 2D SVG, and optionally creates a computed conformer.
+6. QSAR module estimates pChEMBL mean/lower/upper interval, applicability domain, and nearest analogs.
+7. Optional GPU profile adds GPU detection and analog retrieval metadata, falling back safely if unavailable.
+8. Decision module applies threshold-sourced hard gates and uncertainty-aware triage.
+9. Critic Agent downgrades unsupported Go calls and records cautionary findings.
+10. Evidence graph connects candidate, descriptor, prediction, analog, threshold, alert, risk, and decision nodes.
+11. React UI renders the candidate board, molecular twin, conformer view, evidence graph, model card, and trace.
+12. Reports and JSON artifacts are written under `outputs/`.
 
-## 6. Go/Hold/No-Go Decision Logic
+## 6. Go/Hold/No-Go 의사결정 로직
 
-The decision process is intentionally conservative.
+`Go` requires:
 
-Hard gates are checked first:
+- valid SMILES,
+- no severe structural blocker,
+- descriptor gates pass,
+- conservative pChEMBL lower bound passes the activity floor,
+- candidate is inside the applicability domain,
+- prediction interval is not too broad,
+- evidence support is sufficient,
+- Critic Agent has no blocking finding.
 
-- invalid SMILES
-- severe structural alert
-- extreme molecular weight
-- extreme LogP or TPSA
-- low QED
-- poor synthetic accessibility
+`Hold` is the default for uncertainty:
 
-If a candidate fails a hard gate, it becomes `No-Go` regardless of total score.
+- evidence is incomplete,
+- public API fallback was used,
+- QSAR is out-of-domain,
+- prediction interval is wide,
+- non-severe alerts need review,
+- evidence graph contains mixed support and review edges.
 
-For candidates that pass hard gates, the total score is calculated as:
+`No-Go` is reserved for hard blockers:
 
-```text
-Total Score =
-0.30 * predicted activity
-+ 0.25 * drug-likeness
-+ 0.20 * toxicity safety
-+ 0.15 * synthetic accessibility
-+ 0.10 * evidence confidence
-```
+- invalid SMILES,
+- severe structural alert,
+- extreme descriptor failure,
+- very low QED,
+- very high synthetic accessibility risk,
+- unsupported confident activity claim outside the model domain.
 
-`Go` requires hard-gate pass, acceptable evidence confidence, applicability
-domain support, and no structural alerts. `Hold` means plausible but requiring
-additional evidence or expert review. `No-Go` means invalid or unacceptable
-risk according to the gate logic.
+The numeric values are not hidden in code-only constants. They are exported with provenance in `outputs/threshold_registry.json`.
 
-If RDKit is unavailable and only heuristic descriptors are used, Critic Agent
-downgrades `Go` candidates to `Hold`. This prevents the demo from presenting
-heuristic values as confirmed medicinal chemistry evidence.
+## 7. 외부 API, LLM API, GPU 비의존 전략
 
-## 7. External API, LLM API, and GPU Strategy
+Compute profiles:
 
-Target-SAFE does not require local GPU. Its core decision logic runs with CPU
-and standard Python.
+- `CPU demo`: no network, no GPU, deterministic fallback data.
+- `CPU evidence-grade`: live public APIs with CPU RDKit/scikit-learn-ready QSAR path.
+- `GPU accelerated`: optional GPU detection, analog retrieval metadata, and future ensemble hook.
+- `API assisted`: optional LLM summary and hosted service support.
+- `Full research mode`: live evidence, optional GPU, optional LLM graph-grounded report support.
 
-- ChEMBL is used for EGFR activity context.
-- ClinicalTrials.gov is used for EGFR/NSCLC clinical context.
-- openFDA is used only for class-level label-risk checklist context.
-- SQLite cache reduces repeated public API calls.
-- LLM API is optional and improves planning/report wording when configured.
-- RDKit is optional and improves descriptor and alert quality when installed.
+GPU is optional. If GPU is requested but unavailable, the system returns a clear fallback status instead of crashing. The core demo remains CPU-safe.
 
-Competition-provided API credits can improve LLM-based Planner/Critic/Report
-quality and optional hosted ADMET/embedding features. However, the core MVP
-continues to run without those credits.
+LLM is optional. It can improve planning and report language, but final decisions remain tool-grounded and graph-backed.
 
-## 8. Output Formats
+## 8. 결과물 형식
 
-The program produces:
+Primary UI:
 
-- Streamlit dashboard or CLI demo
-- candidate decision table
-- descriptor/risk table
-- tool-call log
-- critic findings
-- HTML report: `outputs/targetsafe_*_targetsafe_report.html`
-- JSON result: `outputs/targetsafe_*_result.json`
-- implementation guide: `outputs/TARGET_SAFE_IMPLEMENTATION_GUIDE.md`
-- packaged source bundle: `outputs/targetsafe_program_bundle.zip`
+- React dashboard at `frontend/`.
+- Streamlit fallback through `streamlit run app.py`.
 
-Generated HTML/JSON run outputs are demo artifacts and are ignored by Git.
-The guide and ZIP bundle are staged as deliverables.
+Generated outputs:
 
-## 9. Test and Evaluation Scenarios
+- `outputs/model_card_egfr.json`
+- `outputs/threshold_registry.json`
+- `outputs/evidence_graph.json`
+- `outputs/ablation_report.html`
+- `outputs/*_targetsafe_report.html`
+- `outputs/*_result.json`
 
-Run tests:
+The React UI shows:
+
+- candidate board,
+- 2D molecular structure,
+- computed conformer view,
+- prediction interval,
+- applicability domain,
+- nearest analogs,
+- ADMET/risk rails,
+- evidence graph,
+- agent trace,
+- model card,
+- HTML report link.
+
+## 9. 테스트 및 평가 시나리오
+
+Run backend tests:
 
 ```powershell
 python -m unittest discover -s tests
 ```
 
-Run CLI demo:
+Run API:
 
 ```powershell
-python app.py
+uvicorn targetsafe.api:app --reload
 ```
 
-Run dashboard after optional dependency installation:
+Run frontend:
 
 ```powershell
-pip install -r requirements.txt
-streamlit run app.py
+cd frontend
+npm install
+npm run dev
 ```
 
-Implemented tests cover:
+Build frontend:
 
-- offline pipeline creates and scores at least 50 candidates
-- invalid SMILES becomes `No-Go`
-- alert-heavy candidate is held or rejected
-- acceptance checks include candidate count, invalid control, decision reasons,
-  and tool logs
+```powershell
+cd frontend
+npm run build
+```
 
-## 10. Limitations and Next Steps
+Implemented tests check:
 
-This is an MVP optimized for a hackathon demonstration. It is not a validated
-drug-discovery model.
+- offline pipeline run,
+- invalid SMILES -> No-Go,
+- alert-heavy candidate -> Hold or No-Go,
+- every decision has threshold IDs,
+- every decision has evidence graph nodes,
+- GPU profile falls back without crashing.
 
-Known limitations:
+## 10. 한계와 후속 고도화
 
-- heuristic descriptors are only fallback estimates
-- QSAR-like score is a ranking aid, not experimentally validated potency
-- candidate generation is limited to seed-derived analog patterns
-- clinical/regulatory signals are class-level context, not candidate-specific
-  proof
-- full RDKit, ChEMBL model training, and hosted ADMET integration are future
-  extensions
+Current limitations:
 
-Recommended next steps:
+- Offline QSAR is analog-supported and demo-grade, not publication-grade.
+- Live ChEMBL model training hook is present conceptually, but scaffold-split trained model should be expanded for final research claims.
+- Computed conformer is not a binding pose.
+- Clinical/regulatory evidence is class-level context, not candidate-specific safety evidence.
+- Hosted ADMET and true GPU deep-learning ensemble are optional future upgrades.
 
-- install RDKit and use RDKit descriptors as the default path
-- train an EGFR pChEMBL-based model with scikit-learn
-- add nearest ChEMBL analog explanations
-- add Critic Agent ablation report
-- add optional hERG/CYP/ADMET API integration
-- export PDF reports
-- expand to JAK2, IRAK4, or other targets after EGFR is stable
+Recommended next upgrades:
 
-The contribution is deliberately modest but defensible: Target-SAFE does not
-claim to invent a drug. It demonstrates an evidence-grounded agentic workflow
-that makes early lead triage faster, more reproducible, and more transparent.
+- Add scaffold-split ChEMBL EGFR training and validation metrics.
+- Add SHAP/permutation or nearest-neighbor explanation for model output.
+- Add hosted ADMET adapters with provenance.
+- Add visual ablation comparison in the React UI.
+- Add PDF export for final report.
+
+Target-SAFE's defensible contribution is not novelty by molecule generation. Its contribution is a reproducible, explainable, evidence-gated narrowing workflow for early lead triage.

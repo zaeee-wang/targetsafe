@@ -62,6 +62,9 @@ class DecisionResult:
     uncertainty: list[str] = field(default_factory=list)
     follow_up: list[str] = field(default_factory=list)
     critic_findings: list[str] = field(default_factory=list)
+    threshold_ids: list[str] = field(default_factory=list)
+    evidence_node_ids: list[str] = field(default_factory=list)
+    criteria: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -79,6 +82,11 @@ class CandidateRecord:
     in_applicability_domain: bool = False
     decision: DecisionResult | None = None
     structure_svg: str | None = None
+    conformer: dict[str, Any] | None = None
+    prediction_interval: dict[str, float] | None = None
+    nearest_analogs: list[dict[str, Any]] = field(default_factory=list)
+    molecular_twin: dict[str, Any] = field(default_factory=dict)
+    evidence_node_ids: list[str] = field(default_factory=list)
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
@@ -91,6 +99,12 @@ class CandidateRecord:
             "applicability_score": self.applicability_score,
             "in_applicability_domain": self.in_applicability_domain,
             "decision": self.decision.to_dict() if self.decision else None,
+            "structure_svg": self.structure_svg,
+            "conformer": self.conformer,
+            "prediction_interval": self.prediction_interval,
+            "nearest_analogs": self.nearest_analogs,
+            "molecular_twin": self.molecular_twin,
+            "evidence_node_ids": self.evidence_node_ids,
         }
 
 
@@ -103,6 +117,11 @@ class PipelineResult:
     tool_logs: list[ToolCallLog]
     report_path: str | None = None
     evaluation_report: dict[str, Any] = field(default_factory=dict)
+    compute_profile: dict[str, Any] = field(default_factory=dict)
+    threshold_registry: dict[str, Any] = field(default_factory=dict)
+    evidence_graph: dict[str, Any] = field(default_factory=dict)
+    model_card: dict[str, Any] = field(default_factory=dict)
+    ablation_report_path: str | None = None
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
@@ -113,5 +132,9 @@ class PipelineResult:
             "tool_logs": [log.to_dict() for log in self.tool_logs],
             "report_path": self.report_path,
             "evaluation_report": self.evaluation_report,
+            "compute_profile": self.compute_profile,
+            "threshold_registry": self.threshold_registry,
+            "evidence_graph": self.evidence_graph,
+            "model_card": self.model_card,
+            "ablation_report_path": self.ablation_report_path,
         }
-

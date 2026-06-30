@@ -1,0 +1,5920 @@
+{
+  "run_id": "targetsafe_1782822137",
+  "schema": "targetsafe.evidence_graph.v1",
+  "summary": {
+    "node_count": 180,
+    "edge_count": 377,
+    "edge_counts": {
+      "context_for": 1,
+      "supports": 92,
+      "requires_review": 3,
+      "derived_from": 253,
+      "classifies": 23,
+      "blocks": 1,
+      "weakens": 4
+    }
+  },
+  "nodes": [
+    {
+      "id": "target_EGFR",
+      "type": "target",
+      "label": "EGFR",
+      "detail": "Pilot target for EGFR mutation-positive NSCLC."
+    },
+    {
+      "id": "disease_context",
+      "type": "disease",
+      "label": "EGFR mutation-positive NSCLC",
+      "detail": "Disease context selected by the user."
+    },
+    {
+      "id": "threshold_activity_pchembl_lower_bound_min",
+      "type": "threshold",
+      "label": "Conservative EGFR activity floor",
+      "value": 7.0,
+      "units": "pChEMBL",
+      "source": "ChEMBL pChEMBL convention; operational early-lead triage policy",
+      "rationale": "pChEMBL 7 corresponds to 100 nM when derived from IC50/Ki/Kd in molar units. Target-SAFE uses the lower prediction bound, not the mean, to avoid overclaiming."
+    },
+    {
+      "id": "threshold_applicability_similarity_min",
+      "type": "threshold",
+      "label": "Minimum nearest-analog similarity",
+      "value": 0.18,
+      "units": "Tanimoto-like similarity",
+      "source": "Target-SAFE applicability-domain calibration on the EGFR reference set",
+      "rationale": "Below this level, the candidate is treated as outside the analog evidence domain. Live ChEMBL training can replace this static floor with a scaffold-split calibration."
+    },
+    {
+      "id": "threshold_evidence_confidence_min_for_go",
+      "type": "threshold",
+      "label": "Minimum graph evidence support for Go",
+      "value": 0.45,
+      "units": "0-1 support ratio",
+      "source": "Target-SAFE graph completeness policy",
+      "rationale": "Go requires at least moderate tool-grounded support. Lower values keep the candidate in Hold until assay, analog, or external evidence is added."
+    },
+    {
+      "id": "threshold_logp_extreme_max",
+      "type": "threshold",
+      "label": "Extreme logP cap",
+      "value": 6.0,
+      "units": "Crippen MolLogP",
+      "source": "Lipinski rule-of-five context with a relaxed early-lead triage margin",
+      "rationale": "High lipophilicity can drive ADMET risk; this cap prevents confident Go calls."
+    },
+    {
+      "id": "threshold_molecular_weight_extreme_max",
+      "type": "threshold",
+      "label": "Extreme molecular weight cap",
+      "value": 650.0,
+      "units": "Da",
+      "source": "Lipinski rule-of-five context with a relaxed kinase-inhibitor triage margin",
+      "rationale": "Used only as an extreme hard gate; softer MW concerns remain in Hold uncertainty."
+    },
+    {
+      "id": "threshold_prediction_interval_width_max",
+      "type": "threshold",
+      "label": "Maximum acceptable activity uncertainty",
+      "value": 1.4,
+      "units": "pChEMBL interval width",
+      "source": "Target-SAFE uncertainty policy",
+      "rationale": "A broad interval means the model is not precise enough for Go. The candidate can still remain Hold when the mean looks promising."
+    },
+    {
+      "id": "threshold_qed_min_floor",
+      "type": "threshold",
+      "label": "Very low QED floor",
+      "value": 0.2,
+      "units": "QED",
+      "source": "RDKit QED implementation of Bickerton et al. Quantifying the chemical beauty of drugs",
+      "rationale": "A very low QED is treated as a hard early-triage warning rather than a potency claim."
+    },
+    {
+      "id": "threshold_sa_score_max",
+      "type": "threshold",
+      "label": "Synthetic accessibility risk cap",
+      "value": 8.0,
+      "units": "SA score",
+      "source": "Ertl-Schuffenhauer synthetic accessibility score interpretation; Target-SAFE fallback policy",
+      "rationale": "High SA candidates should not be advanced without synthetic route review."
+    },
+    {
+      "id": "threshold_tpsa_extreme_max",
+      "type": "threshold",
+      "label": "Extreme TPSA cap",
+      "value": 170.0,
+      "units": "Angstrom^2",
+      "source": "Veber oral bioavailability context with relaxed early-lead triage margin",
+      "rationale": "Used as a conservative hard gate for very polar candidates in this oral TKI pilot."
+    },
+    {
+      "id": "chembl_activity_1",
+      "type": "assay",
+      "label": "CHEMBL939",
+      "detail": {
+        "molecule_chembl_id": "CHEMBL939",
+        "standard_type": "IC50",
+        "standard_value": "33",
+        "standard_units": "nM"
+      }
+    },
+    {
+      "id": "chembl_activity_2",
+      "type": "assay",
+      "label": "CHEMBL553",
+      "detail": {
+        "molecule_chembl_id": "CHEMBL553",
+        "standard_type": "IC50",
+        "standard_value": "2",
+        "standard_units": "nM"
+      }
+    },
+    {
+      "id": "chembl_activity_3",
+      "type": "assay",
+      "label": "CHEMBL3353410",
+      "detail": {
+        "molecule_chembl_id": "CHEMBL3353410",
+        "standard_type": "IC50",
+        "standard_value": "12",
+        "standard_units": "nM"
+      }
+    },
+    {
+      "id": "chembl_activity_4",
+      "type": "assay",
+      "label": "CHEMBL203",
+      "detail": {
+        "molecule_chembl_id": "CHEMBL203",
+        "standard_type": "target",
+        "standard_value": null,
+        "standard_units": null
+      }
+    },
+    {
+      "id": "risk_1",
+      "type": "class_risk",
+      "label": "Interstitial lung disease / pneumonitis",
+      "detail": "Use as a checklist item, not as a candidate-specific safety conclusion."
+    },
+    {
+      "id": "risk_2",
+      "type": "class_risk",
+      "label": "QT prolongation and cardiotoxicity monitoring",
+      "detail": "Requires follow-up assay or label review for specific products."
+    },
+    {
+      "id": "risk_3",
+      "type": "class_risk",
+      "label": "Dermatologic and gastrointestinal adverse reactions",
+      "detail": "Useful for clinical-risk context, not for structural toxicity prediction."
+    },
+    {
+      "id": "candidate_C002",
+      "type": "candidate",
+      "label": "C002",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C002",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+        "molecular_weight": 397.55,
+        "logp": 0.7300000000000001,
+        "tpsa": 86.5,
+        "hbd": 5,
+        "hba": 9,
+        "rotatable_bonds": 3,
+        "qed": 0.805732354624281,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 3.9102,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C002",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 8.510494744937194,
+      "interval": {
+        "lower": 8.186,
+        "mean": 8.51,
+        "upper": 8.835,
+        "width": 0.649
+      },
+      "applicability": 1.0,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 1.0,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.375,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.321,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C002",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 1.0,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Passed sourced hard gates, conservative activity bound, applicability-domain, and evidence checks."
+        ],
+        "uncertainty": [],
+        "follow_up": [
+          "Confirm with orthogonal assay, ADMET panel, and expert medicinal chemistry review.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: downgraded Go to Hold until RDKit descriptors confirm the profile.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "pass",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "pass",
+          "evidence_support": "pass",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C002_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 1.0,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "analog_C002_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.375,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "analog_C002_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.321,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "candidate_C003",
+      "type": "candidate",
+      "label": "C003",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C003",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+        "molecular_weight": 422.14000000000004,
+        "logp": 0.8000000000000002,
+        "tpsa": 83.5,
+        "hbd": 5,
+        "hba": 8,
+        "rotatable_bonds": 1,
+        "qed": 0.7943875861170294,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 4.24856,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C003",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.976952767902488,
+      "interval": {
+        "lower": 7.658,
+        "mean": 7.977,
+        "upper": 8.296,
+        "width": 0.638
+      },
+      "applicability": 1.0,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 1.0,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.375,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.3,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C003",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 1.0,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Passed sourced hard gates, conservative activity bound, applicability-domain, and evidence checks."
+        ],
+        "uncertainty": [],
+        "follow_up": [
+          "Confirm with orthogonal assay, ADMET panel, and expert medicinal chemistry review.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: downgraded Go to Hold until RDKit descriptors confirm the profile.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "pass",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "pass",
+          "evidence_support": "pass",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C003_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 1.0,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "analog_C003_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.375,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "analog_C003_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.3,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "candidate_C004",
+      "type": "candidate",
+      "label": "C004",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCN1CCOCC1",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C004",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCN1CCOCC1",
+        "molecular_weight": 439.95,
+        "logp": 1.1950000000000003,
+        "tpsa": 85.0,
+        "hbd": 5,
+        "hba": 9,
+        "rotatable_bonds": 3,
+        "qed": 0.818920458104794,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 4.2398,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C004",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.628694194217284,
+      "interval": {
+        "lower": 7.308,
+        "mean": 7.629,
+        "upper": 7.949,
+        "width": 0.641
+      },
+      "applicability": 0.9767441860465116,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.977,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.327,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.305,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C004",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 1.0,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Passed sourced hard gates, conservative activity bound, applicability-domain, and evidence checks."
+        ],
+        "uncertainty": [],
+        "follow_up": [
+          "Confirm with orthogonal assay, ADMET panel, and expert medicinal chemistry review.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: downgraded Go to Hold until RDKit descriptors confirm the profile.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "pass",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "pass",
+          "evidence_support": "pass",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C004_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.977,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C004_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.327,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "analog_C004_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.305,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "candidate_C001",
+      "type": "candidate",
+      "label": "C001",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C001",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+        "molecular_weight": 452.60999999999996,
+        "logp": 1.2300000000000004,
+        "tpsa": 85.0,
+        "hbd": 5,
+        "hba": 9,
+        "rotatable_bonds": 3,
+        "qed": 0.8159793138120829,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 4.290439999999999,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C001",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.618811407071703,
+      "interval": {
+        "lower": 7.3,
+        "mean": 7.619,
+        "upper": 7.938,
+        "width": 0.638
+      },
+      "applicability": 1.0,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 1.0,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.321,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.3,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C001",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 1.0,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Passed sourced hard gates, conservative activity bound, applicability-domain, and evidence checks."
+        ],
+        "uncertainty": [],
+        "follow_up": [
+          "Confirm with orthogonal assay, ADMET panel, and expert medicinal chemistry review.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: downgraded Go to Hold until RDKit descriptors confirm the profile.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "pass",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "pass",
+          "evidence_support": "pass",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C001_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 1.0,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C001_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.321,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "analog_C001_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.3,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "candidate_CTRL_POS",
+      "type": "candidate",
+      "label": "CTRL_POS",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_CTRL_POS",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+        "molecular_weight": 452.60999999999996,
+        "logp": 1.2300000000000004,
+        "tpsa": 85.0,
+        "hbd": 5,
+        "hba": 9,
+        "rotatable_bonds": 3,
+        "qed": 0.8159793138120829,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 4.290439999999999,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_CTRL_POS",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.618811407071703,
+      "interval": {
+        "lower": 7.3,
+        "mean": 7.619,
+        "upper": 7.938,
+        "width": 0.638
+      },
+      "applicability": 1.0,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 1.0,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.321,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.3,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_CTRL_POS",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 1.0,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Passed sourced hard gates, conservative activity bound, applicability-domain, and evidence checks."
+        ],
+        "uncertainty": [],
+        "follow_up": [
+          "Confirm with orthogonal assay, ADMET panel, and expert medicinal chemistry review.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: downgraded Go to Hold until RDKit descriptors confirm the profile.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "pass",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "pass",
+          "evidence_support": "pass",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_CTRL_POS_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 1.0,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_CTRL_POS_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.321,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "analog_CTRL_POS_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.3,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "candidate_C011",
+      "type": "candidate",
+      "label": "C011",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)cc3)c2cc1OCCN(C)C",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C011",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(F)cc3)c2cc1OCCN(C)C",
+        "molecular_weight": 359.93,
+        "logp": 0.9950000000000001,
+        "tpsa": 72.0,
+        "hbd": 4,
+        "hba": 8,
+        "rotatable_bonds": 1,
+        "qed": 0.8441853109219174,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 3.51972,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C011",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.789362401647668,
+      "interval": {
+        "lower": 6.929,
+        "mean": 7.789,
+        "upper": 8.65,
+        "width": 1.721
+      },
+      "applicability": 0.6122448979591837,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.612,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.449,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.314,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C011",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.727,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.93 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.72 pChEMBL); model confidence is insufficient for Go.",
+          "Evidence confidence is low."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Require additional public or internal assay evidence before prioritization.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "review",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C011_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.612,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C011_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.449,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "analog_C011_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.314,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "candidate_C013",
+      "type": "candidate",
+      "label": "C013",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)cc3)c2cc1OCCN(CC)CC",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C013",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(F)cc3)c2cc1OCCN(CC)CC",
+        "molecular_weight": 385.25,
+        "logp": 1.0650000000000002,
+        "tpsa": 72.0,
+        "hbd": 4,
+        "hba": 8,
+        "rotatable_bonds": 2,
+        "qed": 0.8635089605006726,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 3.7409999999999997,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C013",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.789771657568927,
+      "interval": {
+        "lower": 6.929,
+        "mean": 7.79,
+        "upper": 8.651,
+        "width": 1.722
+      },
+      "applicability": 0.5882352941176471,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.588,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.431,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.302,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C013",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.727,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.93 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.72 pChEMBL); model confidence is insufficient for Go.",
+          "Evidence confidence is low."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Require additional public or internal assay evidence before prioritization.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "review",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C013_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.588,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C013_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.431,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "analog_C013_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.302,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "candidate_C017",
+      "type": "candidate",
+      "label": "C017",
+      "smiles": "COc1cc2ncnc(Nc3ccc(Cl)cc3)c2cc1OCCN(C)C",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C017",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(Cl)cc3)c2cc1OCCN(C)C",
+        "molecular_weight": 377.03000000000003,
+        "logp": 0.9950000000000001,
+        "tpsa": 72.0,
+        "hbd": 4,
+        "hba": 8,
+        "rotatable_bonds": 2,
+        "qed": 0.8603236258899557,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 3.70812,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C017",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.7714739744838095,
+      "interval": {
+        "lower": 6.914,
+        "mean": 7.771,
+        "upper": 8.629,
+        "width": 1.715
+      },
+      "applicability": 0.6326530612244898,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.633,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.44,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.308,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C017",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.727,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.91 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.72 pChEMBL); model confidence is insufficient for Go.",
+          "Evidence confidence is low."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Require additional public or internal assay evidence before prioritization.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "review",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C017_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.633,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C017_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.44,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "analog_C017_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.308,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "candidate_C019",
+      "type": "candidate",
+      "label": "C019",
+      "smiles": "COc1cc2ncnc(Nc3ccc(Cl)cc3)c2cc1OCCN(CC)CC",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C019",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(Cl)cc3)c2cc1OCCN(CC)CC",
+        "molecular_weight": 402.34999999999997,
+        "logp": 1.0650000000000002,
+        "tpsa": 72.0,
+        "hbd": 4,
+        "hba": 8,
+        "rotatable_bonds": 2,
+        "qed": 0.8621495656933772,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 3.8094,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C019",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.772118558960304,
+      "interval": {
+        "lower": 6.914,
+        "mean": 7.772,
+        "upper": 8.63,
+        "width": 1.716
+      },
+      "applicability": 0.6078431372549019,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.608,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.423,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.296,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C019",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.727,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.91 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.72 pChEMBL); model confidence is insufficient for Go.",
+          "Evidence confidence is low."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Require additional public or internal assay evidence before prioritization.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "review",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C019_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.608,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C019_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.423,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "analog_C019_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.296,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "candidate_C012",
+      "type": "candidate",
+      "label": "C012",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)cc3)c2cc1OCCOC",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C012",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(F)cc3)c2cc1OCCOC",
+        "molecular_weight": 347.96000000000004,
+        "logp": 0.9600000000000002,
+        "tpsa": 73.5,
+        "hbd": 4,
+        "hba": 8,
+        "rotatable_bonds": 1,
+        "qed": 0.840924935764105,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 3.31184,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C012",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.799023804078497,
+      "interval": {
+        "lower": 6.907,
+        "mean": 7.799,
+        "upper": 8.691,
+        "width": 1.784
+      },
+      "applicability": 0.6888888888888889,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.689,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.391,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.333,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C012",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.818,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.91 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.78 pChEMBL); model confidence is insufficient for Go."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "pass",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C012_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.689,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C012_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.391,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "analog_C012_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.333,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "candidate_C014",
+      "type": "candidate",
+      "label": "C014",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)cc3)c2cc1OC",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C014",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(F)cc3)c2cc1OC",
+        "molecular_weight": 305.99,
+        "logp": 1.0100000000000002,
+        "tpsa": 60.5,
+        "hbd": 3,
+        "hba": 7,
+        "rotatable_bonds": 0,
+        "qed": 0.8510529708970997,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 3.0239599999999998,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C014",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.778769972830068,
+      "interval": {
+        "lower": 6.903,
+        "mean": 7.779,
+        "upper": 8.655,
+        "width": 1.752
+      },
+      "applicability": 0.6222222222222222,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.622,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.354,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.326,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C014",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.727,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.90 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.75 pChEMBL); model confidence is insufficient for Go.",
+          "Evidence confidence is low."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Require additional public or internal assay evidence before prioritization.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "review",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C014_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.622,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C014_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.354,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "analog_C014_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.326,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "candidate_C018",
+      "type": "candidate",
+      "label": "C018",
+      "smiles": "COc1cc2ncnc(Nc3ccc(Cl)cc3)c2cc1OCCOC",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C018",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(Cl)cc3)c2cc1OCCOC",
+        "molecular_weight": 365.06,
+        "logp": 0.9600000000000002,
+        "tpsa": 73.5,
+        "hbd": 4,
+        "hba": 8,
+        "rotatable_bonds": 1,
+        "qed": 0.8432244039087008,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 3.38024,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C018",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.777626807953039,
+      "interval": {
+        "lower": 6.891,
+        "mean": 7.778,
+        "upper": 8.664,
+        "width": 1.774
+      },
+      "applicability": 0.7111111111111111,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.711,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.383,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.327,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C018",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.818,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.89 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.77 pChEMBL); model confidence is insufficient for Go."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "pass",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C018_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.711,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C018_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.383,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "analog_C018_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.327,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "candidate_C020",
+      "type": "candidate",
+      "label": "C020",
+      "smiles": "COc1cc2ncnc(Nc3ccc(Cl)cc3)c2cc1OC",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C020",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(Cl)cc3)c2cc1OC",
+        "molecular_weight": 323.09,
+        "logp": 1.0100000000000002,
+        "tpsa": 60.5,
+        "hbd": 3,
+        "hba": 7,
+        "rotatable_bonds": 0,
+        "qed": 0.8570591219247657,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 3.0923599999999998,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C020",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.757987397838954,
+      "interval": {
+        "lower": 6.887,
+        "mean": 7.758,
+        "upper": 8.629,
+        "width": 1.742
+      },
+      "applicability": 0.6444444444444445,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.644,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.347,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.319,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C020",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.727,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.89 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.74 pChEMBL); model confidence is insufficient for Go.",
+          "Evidence confidence is low."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Require additional public or internal assay evidence before prioritization.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "review",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C020_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.644,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C020_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.347,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "analog_C020_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.319,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "candidate_C007",
+      "type": "candidate",
+      "label": "C007",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCN(CC)CC",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C007",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCN(CC)CC",
+        "molecular_weight": 423.3,
+        "logp": 1.3150000000000002,
+        "tpsa": 72.0,
+        "hbd": 4,
+        "hba": 8,
+        "rotatable_bonds": 2,
+        "qed": 0.8694122172088884,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 4.0532,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C007",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.69389001060055,
+      "interval": {
+        "lower": 6.855,
+        "mean": 7.694,
+        "upper": 8.533,
+        "width": 1.678
+      },
+      "applicability": 0.7346938775510204,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.735,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.4,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.281,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C007",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.818,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.86 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.68 pChEMBL); model confidence is insufficient for Go."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "pass",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C007_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.735,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C007_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.4,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "analog_C007_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.281,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "candidate_C005",
+      "type": "candidate",
+      "label": "C005",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCN(C)C",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C005",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCN(C)C",
+        "molecular_weight": 397.98,
+        "logp": 1.245,
+        "tpsa": 72.0,
+        "hbd": 4,
+        "hba": 8,
+        "rotatable_bonds": 2,
+        "qed": 0.870768925576603,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 3.9519200000000003,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C005",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.692251092293554,
+      "interval": {
+        "lower": 6.854,
+        "mean": 7.692,
+        "upper": 8.531,
+        "width": 1.677
+      },
+      "applicability": 0.7659574468085106,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.766,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.415,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.291,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C005",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.818,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.85 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.68 pChEMBL); model confidence is insufficient for Go."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "pass",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C005_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.766,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C005_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.415,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "analog_C005_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.291,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "candidate_C010",
+      "type": "candidate",
+      "label": "C010",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)cc3)c2cc1OCCN1CCOCC1",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C010",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(F)cc3)c2cc1OCCN1CCOCC1",
+        "molecular_weight": 401.9,
+        "logp": 0.9450000000000002,
+        "tpsa": 85.0,
+        "hbd": 5,
+        "hba": 9,
+        "rotatable_bonds": 3,
+        "qed": 0.8161486616637369,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 3.9275999999999995,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C010",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.708410372158942,
+      "interval": {
+        "lower": 6.845,
+        "mean": 7.708,
+        "upper": 8.572,
+        "width": 1.727
+      },
+      "applicability": 0.8,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.8,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.353,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.327,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C010",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.818,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.84 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.73 pChEMBL); model confidence is insufficient for Go."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "pass",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C010_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.8,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C010_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.353,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "analog_C010_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.327,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "candidate_C009",
+      "type": "candidate",
+      "label": "C009",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)cc3)c2cc1OCCCN1CCOCC1",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C009",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(F)cc3)c2cc1OCCCN1CCOCC1",
+        "molecular_weight": 414.56,
+        "logp": 0.9800000000000001,
+        "tpsa": 85.0,
+        "hbd": 5,
+        "hba": 9,
+        "rotatable_bonds": 3,
+        "qed": 0.8157470332011437,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 3.97824,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C009",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.693128482789469,
+      "interval": {
+        "lower": 6.835,
+        "mean": 7.693,
+        "upper": 8.551,
+        "width": 1.717
+      },
+      "applicability": 0.8222222222222222,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.822,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.346,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.321,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C009",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.818,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.83 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.72 pChEMBL); model confidence is insufficient for Go."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "pass",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C009_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.822,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C009_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.346,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "analog_C009_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.321,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "candidate_C016",
+      "type": "candidate",
+      "label": "C016",
+      "smiles": "COc1cc2ncnc(Nc3ccc(Cl)cc3)c2cc1OCCN1CCOCC1",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C016",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(Cl)cc3)c2cc1OCCN1CCOCC1",
+        "molecular_weight": 419.0,
+        "logp": 0.9450000000000002,
+        "tpsa": 85.0,
+        "hbd": 5,
+        "hba": 9,
+        "rotatable_bonds": 3,
+        "qed": 0.8131872181743381,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 3.996,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C016",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.693128482789469,
+      "interval": {
+        "lower": 6.835,
+        "mean": 7.693,
+        "upper": 8.551,
+        "width": 1.717
+      },
+      "applicability": 0.8222222222222222,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.822,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.346,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.321,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C016",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.818,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.83 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.72 pChEMBL); model confidence is insufficient for Go."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "pass",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C016_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.822,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C016_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.346,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "analog_C016_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.321,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "candidate_C006",
+      "type": "candidate",
+      "label": "C006",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCOC",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C006",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCOC",
+        "molecular_weight": 386.01000000000005,
+        "logp": 1.2100000000000002,
+        "tpsa": 73.5,
+        "hbd": 4,
+        "hba": 8,
+        "rotatable_bonds": 1,
+        "qed": 0.8552017766546386,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 3.6240400000000004,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C006",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.687292190138278,
+      "interval": {
+        "lower": 6.829,
+        "mean": 7.687,
+        "upper": 8.546,
+        "width": 1.717
+      },
+      "applicability": 0.8604651162790697,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.86,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.36,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.309,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C006",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.818,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.83 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.72 pChEMBL); model confidence is insufficient for Go."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "pass",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C006_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.86,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C006_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.36,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "analog_C006_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.309,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "candidate_C008",
+      "type": "candidate",
+      "label": "C008",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OC",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C008",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OC",
+        "molecular_weight": 344.03999999999996,
+        "logp": 1.2600000000000002,
+        "tpsa": 60.5,
+        "hbd": 3,
+        "hba": 7,
+        "rotatable_bonds": 0,
+        "qed": 0.8737859586424656,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 3.33616,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C008",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.670767734348993,
+      "interval": {
+        "lower": 6.827,
+        "mean": 7.671,
+        "upper": 8.515,
+        "width": 1.688
+      },
+      "applicability": 0.7906976744186046,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.791,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.327,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.3,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C008",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.818,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.83 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.69 pChEMBL); model confidence is insufficient for Go."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "pass",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C008_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.791,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C008_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.327,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "analog_C008_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.3,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "candidate_C015",
+      "type": "candidate",
+      "label": "C015",
+      "smiles": "COc1cc2ncnc(Nc3ccc(Cl)cc3)c2cc1OCCCN1CCOCC1",
+      "status": "Hold"
+    },
+    {
+      "id": "descriptor_C015",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "COc1cc2ncnc(Nc3ccc(Cl)cc3)c2cc1OCCCN1CCOCC1",
+        "molecular_weight": 431.65999999999997,
+        "logp": 0.9800000000000001,
+        "tpsa": 85.0,
+        "hbd": 5,
+        "hba": 9,
+        "rotatable_bonds": 3,
+        "qed": 0.8116215150931697,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 4.046639999999999,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_C015",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.678886652736881,
+      "interval": {
+        "lower": 6.826,
+        "mean": 7.679,
+        "upper": 8.532,
+        "width": 1.706
+      },
+      "applicability": 0.8444444444444444,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.844,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.34,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.316,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_C015",
+      "type": "decision",
+      "label": "Hold",
+      "detail": {
+        "final_status": "Hold",
+        "total_score": 0.818,
+        "hard_gate_failures": [],
+        "reasons": [
+          "Candidate remains plausible but needs additional evidence, uncertainty reduction, or risk review."
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.83 < 7.00 pChEMBL).",
+          "Prediction interval is broad (1.71 pChEMBL); model confidence is insufficient for Go."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "pass",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "pass",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "analog_C015_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.844,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_C015_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.34,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "analog_C015_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.316,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "candidate_CTRL_NEG_ALERT",
+      "type": "candidate",
+      "label": "CTRL_NEG_ALERT",
+      "smiles": "O=N(=O)c1ccc(N=Nc2ccccc2)cc1",
+      "status": "No-Go"
+    },
+    {
+      "id": "descriptor_CTRL_NEG_ALERT",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": true,
+        "canonical_smiles": "O=N(=O)c1ccc(N=Nc2ccccc2)cc1",
+        "molecular_weight": 236.35,
+        "logp": 0.6200000000000002,
+        "tpsa": 60.5,
+        "hbd": 5,
+        "hba": 5,
+        "rotatable_bonds": 0,
+        "qed": 0.6502414479238167,
+        "lipinski_violations": 0,
+        "alerts": [
+          "azo_or_diazo"
+        ],
+        "severe_alerts": [
+          "azo_or_diazo"
+        ],
+        "sa_score": 3.09,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_CTRL_NEG_ALERT",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 7.525038505414612,
+      "interval": {
+        "lower": 6.349,
+        "mean": 7.525,
+        "upper": 8.701,
+        "width": 2.352
+      },
+      "applicability": 0.2,
+      "in_domain": true,
+      "nearest_analogs": [
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.2,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.184,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.158,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_CTRL_NEG_ALERT",
+      "type": "decision",
+      "label": "No-Go",
+      "detail": {
+        "final_status": "No-Go",
+        "total_score": 0.0,
+        "hard_gate_failures": [
+          "severe_structural_alert"
+        ],
+        "reasons": [
+          "Severe alert(s): azo_or_diazo"
+        ],
+        "uncertainty": [
+          "Conservative activity bound is below the Go floor (6.35 < 7.00 pChEMBL).",
+          "Prediction interval is broad (2.35 pChEMBL); model confidence is insufficient for Go.",
+          "Evidence confidence is low."
+        ],
+        "follow_up": [
+          "Confirm activity with target-specific assay or stronger analog evidence.",
+          "Require additional public or internal assay evidence before prioritization.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: RDKit unavailable; descriptor values are heuristic and require confirmation.",
+          "Critic: high predicted activity is a ranking aid, not an experimentally verified claim."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_weight": "pass",
+          "logp": "pass",
+          "tpsa": "pass",
+          "qed": "pass",
+          "synthetic_accessibility": "pass",
+          "structural_alerts": "block",
+          "conservative_activity": "review",
+          "applicability_domain": "pass",
+          "prediction_uncertainty": "review",
+          "evidence_support": "review",
+          "lipinski": "pass"
+        }
+      }
+    },
+    {
+      "id": "alert_CTRL_NEG_ALERT",
+      "type": "structural_alert",
+      "label": "Structural alert",
+      "alerts": [
+        "azo_or_diazo"
+      ],
+      "severe_alerts": [
+        "azo_or_diazo"
+      ]
+    },
+    {
+      "id": "analog_CTRL_NEG_ALERT_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.2,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "analog_CTRL_NEG_ALERT_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.184,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    },
+    {
+      "id": "analog_CTRL_NEG_ALERT_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.158,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "candidate_CTRL_NEG_INVALID",
+      "type": "candidate",
+      "label": "CTRL_NEG_INVALID",
+      "smiles": "not-a-smiles",
+      "status": "No-Go"
+    },
+    {
+      "id": "descriptor_CTRL_NEG_INVALID",
+      "type": "descriptor",
+      "label": "Molecular descriptors",
+      "detail": {
+        "valid": false,
+        "canonical_smiles": "",
+        "molecular_weight": 0.0,
+        "logp": 0.0,
+        "tpsa": 0.0,
+        "hbd": 0,
+        "hba": 0,
+        "rotatable_bonds": 0,
+        "qed": 0.0,
+        "lipinski_violations": 0,
+        "alerts": [],
+        "severe_alerts": [],
+        "sa_score": 5.0,
+        "method": "heuristic"
+      }
+    },
+    {
+      "id": "prediction_CTRL_NEG_INVALID",
+      "type": "model_prediction",
+      "label": "EGFR activity estimate",
+      "activity": 0.0,
+      "interval": {
+        "lower": 0.0,
+        "mean": 0.0,
+        "upper": 0.0,
+        "width": 0.0
+      },
+      "applicability": 0.0,
+      "in_domain": false,
+      "nearest_analogs": [
+        {
+          "name": "Gefitinib-like seed",
+          "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+          "similarity": 0.0,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 33.0,
+          "pchembl": 7.48,
+          "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Erlotinib-like control",
+          "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+          "similarity": 0.0,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 2.0,
+          "pchembl": 8.7,
+          "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
+          "method": "cpu_tanimoto_fallback"
+        },
+        {
+          "name": "Osimertinib-like control",
+          "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+          "similarity": 0.0,
+          "evidence": "EGFR TKI reference scaffold for offline demo",
+          "activity_nM": 12.0,
+          "pchembl": 7.92,
+          "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
+          "method": "cpu_tanimoto_fallback"
+        }
+      ]
+    },
+    {
+      "id": "decision_CTRL_NEG_INVALID",
+      "type": "decision",
+      "label": "No-Go",
+      "detail": {
+        "final_status": "No-Go",
+        "total_score": 0.0,
+        "hard_gate_failures": [
+          "invalid_smiles"
+        ],
+        "reasons": [
+          "SMILES failed structural validation."
+        ],
+        "uncertainty": [],
+        "follow_up": [
+          "Replace or regenerate the candidate before evaluation.",
+          "Confirm critic findings with RDKit, assay data, and expert review."
+        ],
+        "critic_findings": [
+          "Critic: invalid structure cannot be triaged as a lead candidate."
+        ],
+        "threshold_ids": [
+          "molecular_weight_extreme_max",
+          "logp_extreme_max",
+          "tpsa_extreme_max",
+          "qed_min_floor",
+          "sa_score_max",
+          "activity_pchembl_lower_bound_min",
+          "applicability_similarity_min",
+          "evidence_confidence_min_for_go",
+          "prediction_interval_width_max"
+        ],
+        "evidence_node_ids": [],
+        "criteria": {
+          "molecular_identity": "block"
+        }
+      }
+    },
+    {
+      "id": "analog_CTRL_NEG_INVALID_gefitinib_like_seed",
+      "type": "known_analog",
+      "label": "Gefitinib-like seed",
+      "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
+      "similarity": 0.0,
+      "pchembl": 7.48,
+      "source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)"
+    },
+    {
+      "id": "analog_CTRL_NEG_INVALID_erlotinib_like_control",
+      "type": "known_analog",
+      "label": "Erlotinib-like control",
+      "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
+      "similarity": 0.0,
+      "pchembl": 8.7,
+      "source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)"
+    },
+    {
+      "id": "analog_CTRL_NEG_INVALID_osimertinib_like_control",
+      "type": "known_analog",
+      "label": "Osimertinib-like control",
+      "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
+      "similarity": 0.0,
+      "pchembl": 7.92,
+      "source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)"
+    }
+  ],
+  "edges": [
+    {
+      "source": "target_EGFR",
+      "target": "disease_context",
+      "type": "context_for",
+      "weight": 1.0
+    },
+    {
+      "source": "chembl_activity_1",
+      "target": "target_EGFR",
+      "type": "supports",
+      "weight": 0.6
+    },
+    {
+      "source": "chembl_activity_2",
+      "target": "target_EGFR",
+      "type": "supports",
+      "weight": 0.6
+    },
+    {
+      "source": "chembl_activity_3",
+      "target": "target_EGFR",
+      "type": "supports",
+      "weight": 0.6
+    },
+    {
+      "source": "chembl_activity_4",
+      "target": "target_EGFR",
+      "type": "supports",
+      "weight": 0.6
+    },
+    {
+      "source": "risk_1",
+      "target": "target_EGFR",
+      "type": "requires_review",
+      "weight": 0.4
+    },
+    {
+      "source": "risk_2",
+      "target": "target_EGFR",
+      "type": "requires_review",
+      "weight": 0.4
+    },
+    {
+      "source": "risk_3",
+      "target": "target_EGFR",
+      "type": "requires_review",
+      "weight": 0.4
+    },
+    {
+      "source": "candidate_C002",
+      "target": "descriptor_C002",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C002",
+      "target": "prediction_C002",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C002",
+      "target": "decision_C002",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C002",
+      "target": "candidate_C002",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C002",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C002",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C002",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C002",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C002",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C002",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C002",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C002",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C002",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C002_erlotinib_like_control",
+      "target": "prediction_C002",
+      "type": "supports",
+      "weight": 1.0
+    },
+    {
+      "source": "analog_C002_osimertinib_like_control",
+      "target": "prediction_C002",
+      "type": "supports",
+      "weight": 0.375
+    },
+    {
+      "source": "analog_C002_gefitinib_like_seed",
+      "target": "prediction_C002",
+      "type": "supports",
+      "weight": 0.321
+    },
+    {
+      "source": "candidate_C003",
+      "target": "descriptor_C003",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C003",
+      "target": "prediction_C003",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C003",
+      "target": "decision_C003",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C003",
+      "target": "candidate_C003",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C003",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C003",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C003",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C003",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C003",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C003",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C003",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C003",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C003",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C003_osimertinib_like_control",
+      "target": "prediction_C003",
+      "type": "supports",
+      "weight": 1.0
+    },
+    {
+      "source": "analog_C003_erlotinib_like_control",
+      "target": "prediction_C003",
+      "type": "supports",
+      "weight": 0.375
+    },
+    {
+      "source": "analog_C003_gefitinib_like_seed",
+      "target": "prediction_C003",
+      "type": "supports",
+      "weight": 0.3
+    },
+    {
+      "source": "candidate_C004",
+      "target": "descriptor_C004",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C004",
+      "target": "prediction_C004",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C004",
+      "target": "decision_C004",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C004",
+      "target": "candidate_C004",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C004",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C004",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C004",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C004",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C004",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C004",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C004",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C004",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C004",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C004_gefitinib_like_seed",
+      "target": "prediction_C004",
+      "type": "supports",
+      "weight": 0.977
+    },
+    {
+      "source": "analog_C004_erlotinib_like_control",
+      "target": "prediction_C004",
+      "type": "supports",
+      "weight": 0.327
+    },
+    {
+      "source": "analog_C004_osimertinib_like_control",
+      "target": "prediction_C004",
+      "type": "supports",
+      "weight": 0.305
+    },
+    {
+      "source": "candidate_C001",
+      "target": "descriptor_C001",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C001",
+      "target": "prediction_C001",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C001",
+      "target": "decision_C001",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C001",
+      "target": "candidate_C001",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C001",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C001",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C001",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C001",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C001",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C001",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C001",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C001",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C001",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C001_gefitinib_like_seed",
+      "target": "prediction_C001",
+      "type": "supports",
+      "weight": 1.0
+    },
+    {
+      "source": "analog_C001_erlotinib_like_control",
+      "target": "prediction_C001",
+      "type": "supports",
+      "weight": 0.321
+    },
+    {
+      "source": "analog_C001_osimertinib_like_control",
+      "target": "prediction_C001",
+      "type": "supports",
+      "weight": 0.3
+    },
+    {
+      "source": "candidate_CTRL_POS",
+      "target": "descriptor_CTRL_POS",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_CTRL_POS",
+      "target": "prediction_CTRL_POS",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_CTRL_POS",
+      "target": "decision_CTRL_POS",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_CTRL_POS",
+      "target": "candidate_CTRL_POS",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_CTRL_POS",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_CTRL_POS",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_CTRL_POS",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_CTRL_POS",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_CTRL_POS",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_CTRL_POS",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_CTRL_POS",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_CTRL_POS",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_CTRL_POS",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_CTRL_POS_gefitinib_like_seed",
+      "target": "prediction_CTRL_POS",
+      "type": "supports",
+      "weight": 1.0
+    },
+    {
+      "source": "analog_CTRL_POS_erlotinib_like_control",
+      "target": "prediction_CTRL_POS",
+      "type": "supports",
+      "weight": 0.321
+    },
+    {
+      "source": "analog_CTRL_POS_osimertinib_like_control",
+      "target": "prediction_CTRL_POS",
+      "type": "supports",
+      "weight": 0.3
+    },
+    {
+      "source": "candidate_C011",
+      "target": "descriptor_C011",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C011",
+      "target": "prediction_C011",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C011",
+      "target": "decision_C011",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C011",
+      "target": "candidate_C011",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C011",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C011",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C011",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C011",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C011",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C011",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C011",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C011",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C011",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C011_gefitinib_like_seed",
+      "target": "prediction_C011",
+      "type": "supports",
+      "weight": 0.612
+    },
+    {
+      "source": "analog_C011_osimertinib_like_control",
+      "target": "prediction_C011",
+      "type": "supports",
+      "weight": 0.449
+    },
+    {
+      "source": "analog_C011_erlotinib_like_control",
+      "target": "prediction_C011",
+      "type": "supports",
+      "weight": 0.314
+    },
+    {
+      "source": "candidate_C013",
+      "target": "descriptor_C013",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C013",
+      "target": "prediction_C013",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C013",
+      "target": "decision_C013",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C013",
+      "target": "candidate_C013",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C013",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C013",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C013",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C013",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C013",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C013",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C013",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C013",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C013",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C013_gefitinib_like_seed",
+      "target": "prediction_C013",
+      "type": "supports",
+      "weight": 0.588
+    },
+    {
+      "source": "analog_C013_osimertinib_like_control",
+      "target": "prediction_C013",
+      "type": "supports",
+      "weight": 0.431
+    },
+    {
+      "source": "analog_C013_erlotinib_like_control",
+      "target": "prediction_C013",
+      "type": "supports",
+      "weight": 0.302
+    },
+    {
+      "source": "candidate_C017",
+      "target": "descriptor_C017",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C017",
+      "target": "prediction_C017",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C017",
+      "target": "decision_C017",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C017",
+      "target": "candidate_C017",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C017",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C017",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C017",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C017",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C017",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C017",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C017",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C017",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C017",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C017_gefitinib_like_seed",
+      "target": "prediction_C017",
+      "type": "supports",
+      "weight": 0.633
+    },
+    {
+      "source": "analog_C017_osimertinib_like_control",
+      "target": "prediction_C017",
+      "type": "supports",
+      "weight": 0.44
+    },
+    {
+      "source": "analog_C017_erlotinib_like_control",
+      "target": "prediction_C017",
+      "type": "supports",
+      "weight": 0.308
+    },
+    {
+      "source": "candidate_C019",
+      "target": "descriptor_C019",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C019",
+      "target": "prediction_C019",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C019",
+      "target": "decision_C019",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C019",
+      "target": "candidate_C019",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C019",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C019",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C019",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C019",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C019",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C019",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C019",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C019",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C019",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C019_gefitinib_like_seed",
+      "target": "prediction_C019",
+      "type": "supports",
+      "weight": 0.608
+    },
+    {
+      "source": "analog_C019_osimertinib_like_control",
+      "target": "prediction_C019",
+      "type": "supports",
+      "weight": 0.423
+    },
+    {
+      "source": "analog_C019_erlotinib_like_control",
+      "target": "prediction_C019",
+      "type": "supports",
+      "weight": 0.296
+    },
+    {
+      "source": "candidate_C012",
+      "target": "descriptor_C012",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C012",
+      "target": "prediction_C012",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C012",
+      "target": "decision_C012",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C012",
+      "target": "candidate_C012",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C012",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C012",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C012",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C012",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C012",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C012",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C012",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C012",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C012",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C012_gefitinib_like_seed",
+      "target": "prediction_C012",
+      "type": "supports",
+      "weight": 0.689
+    },
+    {
+      "source": "analog_C012_erlotinib_like_control",
+      "target": "prediction_C012",
+      "type": "supports",
+      "weight": 0.391
+    },
+    {
+      "source": "analog_C012_osimertinib_like_control",
+      "target": "prediction_C012",
+      "type": "supports",
+      "weight": 0.333
+    },
+    {
+      "source": "candidate_C014",
+      "target": "descriptor_C014",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C014",
+      "target": "prediction_C014",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C014",
+      "target": "decision_C014",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C014",
+      "target": "candidate_C014",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C014",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C014",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C014",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C014",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C014",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C014",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C014",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C014",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C014",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C014_gefitinib_like_seed",
+      "target": "prediction_C014",
+      "type": "supports",
+      "weight": 0.622
+    },
+    {
+      "source": "analog_C014_osimertinib_like_control",
+      "target": "prediction_C014",
+      "type": "supports",
+      "weight": 0.354
+    },
+    {
+      "source": "analog_C014_erlotinib_like_control",
+      "target": "prediction_C014",
+      "type": "supports",
+      "weight": 0.326
+    },
+    {
+      "source": "candidate_C018",
+      "target": "descriptor_C018",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C018",
+      "target": "prediction_C018",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C018",
+      "target": "decision_C018",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C018",
+      "target": "candidate_C018",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C018",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C018",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C018",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C018",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C018",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C018",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C018",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C018",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C018",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C018_gefitinib_like_seed",
+      "target": "prediction_C018",
+      "type": "supports",
+      "weight": 0.711
+    },
+    {
+      "source": "analog_C018_erlotinib_like_control",
+      "target": "prediction_C018",
+      "type": "supports",
+      "weight": 0.383
+    },
+    {
+      "source": "analog_C018_osimertinib_like_control",
+      "target": "prediction_C018",
+      "type": "supports",
+      "weight": 0.327
+    },
+    {
+      "source": "candidate_C020",
+      "target": "descriptor_C020",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C020",
+      "target": "prediction_C020",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C020",
+      "target": "decision_C020",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C020",
+      "target": "candidate_C020",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C020",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C020",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C020",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C020",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C020",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C020",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C020",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C020",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C020",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C020_gefitinib_like_seed",
+      "target": "prediction_C020",
+      "type": "supports",
+      "weight": 0.644
+    },
+    {
+      "source": "analog_C020_osimertinib_like_control",
+      "target": "prediction_C020",
+      "type": "supports",
+      "weight": 0.347
+    },
+    {
+      "source": "analog_C020_erlotinib_like_control",
+      "target": "prediction_C020",
+      "type": "supports",
+      "weight": 0.319
+    },
+    {
+      "source": "candidate_C007",
+      "target": "descriptor_C007",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C007",
+      "target": "prediction_C007",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C007",
+      "target": "decision_C007",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C007",
+      "target": "candidate_C007",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C007",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C007",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C007",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C007",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C007",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C007",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C007",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C007",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C007",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C007_gefitinib_like_seed",
+      "target": "prediction_C007",
+      "type": "supports",
+      "weight": 0.735
+    },
+    {
+      "source": "analog_C007_osimertinib_like_control",
+      "target": "prediction_C007",
+      "type": "supports",
+      "weight": 0.4
+    },
+    {
+      "source": "analog_C007_erlotinib_like_control",
+      "target": "prediction_C007",
+      "type": "supports",
+      "weight": 0.281
+    },
+    {
+      "source": "candidate_C005",
+      "target": "descriptor_C005",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C005",
+      "target": "prediction_C005",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C005",
+      "target": "decision_C005",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C005",
+      "target": "candidate_C005",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C005",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C005",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C005",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C005",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C005",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C005",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C005",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C005",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C005",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C005_gefitinib_like_seed",
+      "target": "prediction_C005",
+      "type": "supports",
+      "weight": 0.766
+    },
+    {
+      "source": "analog_C005_osimertinib_like_control",
+      "target": "prediction_C005",
+      "type": "supports",
+      "weight": 0.415
+    },
+    {
+      "source": "analog_C005_erlotinib_like_control",
+      "target": "prediction_C005",
+      "type": "supports",
+      "weight": 0.291
+    },
+    {
+      "source": "candidate_C010",
+      "target": "descriptor_C010",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C010",
+      "target": "prediction_C010",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C010",
+      "target": "decision_C010",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C010",
+      "target": "candidate_C010",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C010",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C010",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C010",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C010",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C010",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C010",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C010",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C010",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C010",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C010_gefitinib_like_seed",
+      "target": "prediction_C010",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "analog_C010_erlotinib_like_control",
+      "target": "prediction_C010",
+      "type": "supports",
+      "weight": 0.353
+    },
+    {
+      "source": "analog_C010_osimertinib_like_control",
+      "target": "prediction_C010",
+      "type": "supports",
+      "weight": 0.327
+    },
+    {
+      "source": "candidate_C009",
+      "target": "descriptor_C009",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C009",
+      "target": "prediction_C009",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C009",
+      "target": "decision_C009",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C009",
+      "target": "candidate_C009",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C009",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C009",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C009",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C009",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C009",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C009",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C009",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C009",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C009",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C009_gefitinib_like_seed",
+      "target": "prediction_C009",
+      "type": "supports",
+      "weight": 0.822
+    },
+    {
+      "source": "analog_C009_erlotinib_like_control",
+      "target": "prediction_C009",
+      "type": "supports",
+      "weight": 0.346
+    },
+    {
+      "source": "analog_C009_osimertinib_like_control",
+      "target": "prediction_C009",
+      "type": "supports",
+      "weight": 0.321
+    },
+    {
+      "source": "candidate_C016",
+      "target": "descriptor_C016",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C016",
+      "target": "prediction_C016",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C016",
+      "target": "decision_C016",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C016",
+      "target": "candidate_C016",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C016",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C016",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C016",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C016",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C016",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C016",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C016",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C016",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C016",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C016_gefitinib_like_seed",
+      "target": "prediction_C016",
+      "type": "supports",
+      "weight": 0.822
+    },
+    {
+      "source": "analog_C016_erlotinib_like_control",
+      "target": "prediction_C016",
+      "type": "supports",
+      "weight": 0.346
+    },
+    {
+      "source": "analog_C016_osimertinib_like_control",
+      "target": "prediction_C016",
+      "type": "supports",
+      "weight": 0.321
+    },
+    {
+      "source": "candidate_C006",
+      "target": "descriptor_C006",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C006",
+      "target": "prediction_C006",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C006",
+      "target": "decision_C006",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C006",
+      "target": "candidate_C006",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C006",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C006",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C006",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C006",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C006",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C006",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C006",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C006",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C006",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C006_gefitinib_like_seed",
+      "target": "prediction_C006",
+      "type": "supports",
+      "weight": 0.86
+    },
+    {
+      "source": "analog_C006_erlotinib_like_control",
+      "target": "prediction_C006",
+      "type": "supports",
+      "weight": 0.36
+    },
+    {
+      "source": "analog_C006_osimertinib_like_control",
+      "target": "prediction_C006",
+      "type": "supports",
+      "weight": 0.309
+    },
+    {
+      "source": "candidate_C008",
+      "target": "descriptor_C008",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C008",
+      "target": "prediction_C008",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C008",
+      "target": "decision_C008",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C008",
+      "target": "candidate_C008",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C008",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C008",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C008",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C008",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C008",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C008",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C008",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C008",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C008",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C008_gefitinib_like_seed",
+      "target": "prediction_C008",
+      "type": "supports",
+      "weight": 0.791
+    },
+    {
+      "source": "analog_C008_osimertinib_like_control",
+      "target": "prediction_C008",
+      "type": "supports",
+      "weight": 0.327
+    },
+    {
+      "source": "analog_C008_erlotinib_like_control",
+      "target": "prediction_C008",
+      "type": "supports",
+      "weight": 0.3
+    },
+    {
+      "source": "candidate_C015",
+      "target": "descriptor_C015",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_C015",
+      "target": "prediction_C015",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_C015",
+      "target": "decision_C015",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_C015",
+      "target": "candidate_C015",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_C015",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_C015",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_C015",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_C015",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_C015",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_C015",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_C015",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_C015",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_C015",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_C015_gefitinib_like_seed",
+      "target": "prediction_C015",
+      "type": "supports",
+      "weight": 0.844
+    },
+    {
+      "source": "analog_C015_erlotinib_like_control",
+      "target": "prediction_C015",
+      "type": "supports",
+      "weight": 0.34
+    },
+    {
+      "source": "analog_C015_osimertinib_like_control",
+      "target": "prediction_C015",
+      "type": "supports",
+      "weight": 0.316
+    },
+    {
+      "source": "candidate_CTRL_NEG_ALERT",
+      "target": "descriptor_CTRL_NEG_ALERT",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_CTRL_NEG_ALERT",
+      "target": "prediction_CTRL_NEG_ALERT",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_CTRL_NEG_ALERT",
+      "target": "decision_CTRL_NEG_ALERT",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_CTRL_NEG_ALERT",
+      "target": "candidate_CTRL_NEG_ALERT",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "alert_CTRL_NEG_ALERT",
+      "target": "decision_CTRL_NEG_ALERT",
+      "type": "blocks",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_CTRL_NEG_ALERT",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_CTRL_NEG_ALERT",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_CTRL_NEG_ALERT",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_CTRL_NEG_ALERT",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_CTRL_NEG_ALERT",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_CTRL_NEG_ALERT",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_CTRL_NEG_ALERT",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_CTRL_NEG_ALERT",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_CTRL_NEG_ALERT",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_CTRL_NEG_ALERT_erlotinib_like_control",
+      "target": "prediction_CTRL_NEG_ALERT",
+      "type": "supports",
+      "weight": 0.2
+    },
+    {
+      "source": "analog_CTRL_NEG_ALERT_osimertinib_like_control",
+      "target": "prediction_CTRL_NEG_ALERT",
+      "type": "supports",
+      "weight": 0.184
+    },
+    {
+      "source": "analog_CTRL_NEG_ALERT_gefitinib_like_seed",
+      "target": "prediction_CTRL_NEG_ALERT",
+      "type": "weakens",
+      "weight": 0.158
+    },
+    {
+      "source": "candidate_CTRL_NEG_INVALID",
+      "target": "descriptor_CTRL_NEG_INVALID",
+      "type": "derived_from",
+      "weight": 1.0
+    },
+    {
+      "source": "descriptor_CTRL_NEG_INVALID",
+      "target": "prediction_CTRL_NEG_INVALID",
+      "type": "derived_from",
+      "weight": 0.8
+    },
+    {
+      "source": "prediction_CTRL_NEG_INVALID",
+      "target": "decision_CTRL_NEG_INVALID",
+      "type": "supports",
+      "weight": 0.8
+    },
+    {
+      "source": "decision_CTRL_NEG_INVALID",
+      "target": "candidate_CTRL_NEG_INVALID",
+      "type": "classifies",
+      "weight": 1.0
+    },
+    {
+      "source": "threshold_molecular_weight_extreme_max",
+      "target": "decision_CTRL_NEG_INVALID",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_logp_extreme_max",
+      "target": "decision_CTRL_NEG_INVALID",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_tpsa_extreme_max",
+      "target": "decision_CTRL_NEG_INVALID",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_qed_min_floor",
+      "target": "decision_CTRL_NEG_INVALID",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_sa_score_max",
+      "target": "decision_CTRL_NEG_INVALID",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_activity_pchembl_lower_bound_min",
+      "target": "decision_CTRL_NEG_INVALID",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_applicability_similarity_min",
+      "target": "decision_CTRL_NEG_INVALID",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_evidence_confidence_min_for_go",
+      "target": "decision_CTRL_NEG_INVALID",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "threshold_prediction_interval_width_max",
+      "target": "decision_CTRL_NEG_INVALID",
+      "type": "derived_from",
+      "weight": 0.65
+    },
+    {
+      "source": "analog_CTRL_NEG_INVALID_gefitinib_like_seed",
+      "target": "prediction_CTRL_NEG_INVALID",
+      "type": "weakens",
+      "weight": 0.0
+    },
+    {
+      "source": "analog_CTRL_NEG_INVALID_erlotinib_like_control",
+      "target": "prediction_CTRL_NEG_INVALID",
+      "type": "weakens",
+      "weight": 0.0
+    },
+    {
+      "source": "analog_CTRL_NEG_INVALID_osimertinib_like_control",
+      "target": "prediction_CTRL_NEG_INVALID",
+      "type": "weakens",
+      "weight": 0.0
+    }
+  ]
+}

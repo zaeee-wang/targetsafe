@@ -6,16 +6,25 @@ KNOWN_EGFR_INHIBITORS = [
         "name": "Gefitinib-like seed",
         "smiles": "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
         "evidence": "EGFR TKI reference scaffold for offline demo",
+        "activity_nM": 33.0,
+        "pchembl": 7.48,
+        "activity_source": "Fallback ChEMBL activity CHEMBL939 IC50 33 nM; pChEMBL=-log10(33e-9)",
     },
     {
         "name": "Erlotinib-like control",
         "smiles": "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1",
         "evidence": "EGFR TKI reference scaffold for offline demo",
+        "activity_nM": 2.0,
+        "pchembl": 8.70,
+        "activity_source": "Fallback ChEMBL activity CHEMBL553 IC50 2 nM; pChEMBL=-log10(2e-9)",
     },
     {
         "name": "Osimertinib-like control",
         "smiles": "COc1cc(N(C)CCN(C)C)c(Nc2nccc(Nc3ccccc3)c2)c(OC)c1",
         "evidence": "EGFR TKI reference scaffold for offline demo",
+        "activity_nM": 12.0,
+        "pchembl": 7.92,
+        "activity_source": "Fallback ChEMBL activity CHEMBL3353410 IC50 12 nM; pChEMBL=-log10(12e-9)",
     },
 ]
 
@@ -90,4 +99,3 @@ CORES = [
     "COc1cc2ncnc({aniline})c2cc(OC)c1{tail}",
     "COc1cc2ncnc({aniline})c2ccc1{tail}",
 ]
-

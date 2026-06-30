@@ -4,6 +4,7 @@ import hashlib
 import json
 import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +16,7 @@ class SQLiteCache:
         self._init_db()
 
     def _init_db(self) -> None:
-        with sqlite3.connect(self.path) as conn:
+        with closing(sqlite3.connect(self.path)) as conn:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS cache_entries (
@@ -34,7 +35,7 @@ class SQLiteCache:
 
     def get(self, namespace: str, query: Any, ttl_seconds: int | None = 86400) -> Any | None:
         key = self.make_key(namespace, query)
-        with sqlite3.connect(self.path) as conn:
+        with closing(sqlite3.connect(self.path)) as conn:
             row = conn.execute(
                 "SELECT payload, created_at FROM cache_entries WHERE cache_key = ?",
                 (key,),
@@ -49,7 +50,7 @@ class SQLiteCache:
     def set(self, namespace: str, query: Any, payload: Any) -> None:
         key = self.make_key(namespace, query)
         encoded = json.dumps(payload, sort_keys=True, default=str)
-        with sqlite3.connect(self.path) as conn:
+        with closing(sqlite3.connect(self.path)) as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO cache_entries (cache_key, payload, created_at)
@@ -58,4 +59,3 @@ class SQLiteCache:
                 (key, encoded, time.time()),
             )
             conn.commit()
-

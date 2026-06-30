@@ -12,12 +12,14 @@ from targetsafe.models import CandidateRecord, DescriptorResult
 
 try:
     from rdkit import Chem
+    from rdkit.Chem import AllChem
     from rdkit.Chem import Crippen, Descriptors, Draw, Lipinski, QED, rdMolDescriptors
     from rdkit.Chem.FilterCatalog import FilterCatalog, FilterCatalogParams
 
     RDKIT_AVAILABLE = True
 except Exception:
     Chem = None
+    AllChem = None
     Crippen = None
     Descriptors = None
     Draw = None
@@ -72,7 +74,7 @@ def evaluate_smiles(smiles: str) -> DescriptorResult:
 
 def mol_svg_data_uri(smiles: str) -> str | None:
     if not RDKIT_AVAILABLE:
-        return None
+        return _fallback_smiles_svg_data_uri(smiles)
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return None
@@ -82,6 +84,118 @@ def mol_svg_data_uri(smiles: str) -> str | None:
         return f"data:image/svg+xml;base64,{encoded}"
     except Exception:
         return None
+
+
+def _fallback_smiles_svg_data_uri(smiles: str) -> str | None:
+    if not _heuristic_valid_smiles(smiles):
+        return None
+    atoms = re.findall(r"Cl|Br|[BCNOFPSI]|[bcnops]", smiles)
+    atoms = [atom.capitalize() for atom in atoms if atom.strip()][:18]
+    if not atoms:
+        return None
+    width = 320
+    height = 190
+    step = min(44, max(22, int((width - 54) / max(len(atoms) - 1, 1))))
+    start_x = 28
+    points = []
+    for idx, atom in enumerate(atoms):
+        x = start_x + idx * step
+        y = 92 + (18 if idx % 2 else -18)
+        points.append((x, y, atom))
+    lines = []
+    circles = []
+    for idx, (x, y, atom) in enumerate(points):
+        if idx:
+            px, py, _ = points[idx - 1]
+            lines.append(f'<line x1="{px}" y1="{py}" x2="{x}" y2="{y}" stroke="#7d8e87" stroke-width="2"/>')
+        color = _atom_color(atom)
+        circles.append(
+            f'<circle cx="{x}" cy="{y}" r="13" fill="{color}" stroke="#176c73" stroke-width="1.5"/>'
+            f'<text x="{x}" y="{y + 4}" text-anchor="middle" font-size="11" font-family="Arial" fill="#142421" font-weight="700">{html.escape(atom)}</text>'
+        )
+    svg = "".join(
+        [
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+            '<rect width="100%" height="100%" fill="#fbfdfb"/>',
+            '<text x="16" y="22" font-family="Arial" font-size="11" fill="#384742">SMILES schematic fallback</text>',
+            "".join(lines),
+            "".join(circles),
+            "</svg>",
+        ]
+    )
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+    return f"data:image/svg+xml;base64,{encoded}"
+
+
+def _atom_color(atom: str) -> str:
+    colors = {
+        "C": "#eff7ef",
+        "N": "#dfe9ff",
+        "O": "#ffe3df",
+        "F": "#e6f5dd",
+        "Cl": "#e6f5dd",
+        "Br": "#f2e8d7",
+        "S": "#fff2bf",
+    }
+    return colors.get(atom, "#ffffff")
+
+
+def mol_conformer_payload(smiles: str) -> dict[str, object] | None:
+    if not RDKIT_AVAILABLE:
+        return {
+            "available": False,
+            "label": "computed conformer unavailable",
+            "message": "RDKit is unavailable; 3D view is disabled for this run.",
+            "atoms": [],
+            "bonds": [],
+        }
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return None
+    try:
+        mol = Chem.AddHs(mol)
+        status = AllChem.EmbedMolecule(mol, randomSeed=13)
+        if status != 0:
+            return {
+                "available": False,
+                "label": "computed conformer unavailable",
+                "message": "RDKit could not embed a conformer for this molecule.",
+                "atoms": [],
+                "bonds": [],
+            }
+        AllChem.UFFOptimizeMolecule(mol, maxIters=80)
+        conformer = mol.GetConformer()
+        atoms = []
+        for atom in mol.GetAtoms():
+            pos = conformer.GetAtomPosition(atom.GetIdx())
+            atoms.append(
+                {
+                    "index": atom.GetIdx(),
+                    "element": atom.GetSymbol(),
+                    "x": round(float(pos.x), 3),
+                    "y": round(float(pos.y), 3),
+                    "z": round(float(pos.z), 3),
+                }
+            )
+        bonds = [
+            {"begin": bond.GetBeginAtomIdx(), "end": bond.GetEndAtomIdx(), "order": float(bond.GetBondTypeAsDouble())}
+            for bond in mol.GetBonds()
+        ]
+        return {
+            "available": True,
+            "label": "computed conformer",
+            "message": "RDKit ETKDG/UFF conformer for spatial inspection only; not a validated binding pose.",
+            "atoms": atoms,
+            "bonds": bonds,
+        }
+    except Exception as exc:
+        return {
+            "available": False,
+            "label": "computed conformer unavailable",
+            "message": f"Conformer generation failed: {exc.__class__.__name__}.",
+            "atoms": [],
+            "bonds": [],
+        }
 
 
 def tanimoto_like_similarity(a: str, b: str) -> float:
@@ -281,4 +395,3 @@ def _char_ngrams(smiles: str, n: int = 3) -> set[str]:
 
 def html_escape(value: object) -> str:
     return html.escape(str(value), quote=True)
-

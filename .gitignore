@@ -4,7 +4,8 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .venv/
-work/*.sqlite
-work/test_runs/
+work/
 outputs/targetsafe_*_result.json
 outputs/targetsafe_*_targetsafe_report.html
+frontend/node_modules/
+frontend/dist/

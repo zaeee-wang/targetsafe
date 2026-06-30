@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from targetsafe.compute_profiles import profile_options
 from targetsafe.pipeline import PipelineConfig, run_pipeline
 
 
@@ -58,8 +59,12 @@ def _render_streamlit() -> None:
         seed_smiles = st.text_area("Seed SMILES", DEFAULT_SEED, height=80)
         optimization_goal = st.text_area("Optimization goal", DEFAULT_GOAL, height=90)
         candidate_count = st.slider("Candidate count", 20, 120, 60, step=10)
+        profiles = profile_options()
+        profile_labels = {profile["label"]: profile["id"] for profile in profiles}
+        profile_label = st.selectbox("Compute profile", list(profile_labels), index=0)
         allow_network = st.toggle("Use public APIs", value=False)
         use_llm = st.toggle("Use optional LLM", value=False)
+        use_gpu = st.toggle("Use optional GPU", value=False)
         run = st.button("Run triage", type="primary")
 
     if not run:
@@ -74,6 +79,8 @@ def _render_streamlit() -> None:
         candidate_count=candidate_count,
         allow_network=allow_network,
         use_llm=use_llm,
+        use_gpu=use_gpu,
+        compute_profile=profile_labels[profile_label],
         output_dir=Path("outputs"),
     )
     with st.spinner("Running Target-SAFE pipeline..."):
@@ -90,6 +97,9 @@ def _render_streamlit() -> None:
     cols[2].metric("Hold", status_counts.get("Hold", 0))
     cols[3].metric("No-Go", status_counts.get("No-Go", 0))
 
+    st.subheader("Compute Profile")
+    st.json(result.compute_profile)
+
     st.subheader("Agent Plan")
     st.write(result.plan)
 
@@ -104,6 +114,7 @@ def _render_streamlit() -> None:
                 "status": d.final_status if d else "",
                 "score": round(d.total_score, 3) if d else None,
                 "activity": round(c.predicted_activity, 3) if c.predicted_activity else None,
+                "lower_bound": round((c.prediction_interval or {}).get("lower", 0.0), 3),
                 "confidence": round(c.evidence_confidence, 3),
                 "in_domain": c.in_applicability_domain,
                 "QED": round(descriptors.qed, 3) if descriptors else None,

@@ -25,6 +25,11 @@ class TargetSafePipelineTests(unittest.TestCase):
         self.assertGreaterEqual(len(candidate_rows), 50)
         self.assertTrue(result.report_path)
         self.assertIn("candidate_count_at_least_50", result.evaluation_report["acceptance_checks"])
+        self.assertTrue(result.evaluation_report["acceptance_checks"]["all_decisions_have_threshold_sources"])
+        self.assertTrue(result.evaluation_report["acceptance_checks"]["all_decisions_have_evidence_nodes"])
+        self.assertIn("rules", result.threshold_registry)
+        self.assertIn("nodes", result.evidence_graph)
+        self.assertIn("model_id", result.model_card)
         statuses = {c.decision.final_status for c in result.candidates if c.decision}
         self.assertTrue({"Go", "Hold", "No-Go"} & statuses)
 
@@ -34,6 +39,7 @@ class TargetSafePipelineTests(unittest.TestCase):
         decision = decide_candidate(candidate)
         self.assertEqual(decision.final_status, "No-Go")
         self.assertIn("invalid_smiles", decision.hard_gate_failures)
+        self.assertTrue(decision.threshold_ids)
 
     def test_alert_control_is_flagged(self) -> None:
         candidate = CandidateRecord(candidate_id="X", smiles="O=N(=O)c1ccc(N=Nc2ccccc2)cc1", source="test")
@@ -41,6 +47,20 @@ class TargetSafePipelineTests(unittest.TestCase):
         decision = decide_candidate(candidate)
         self.assertIn(decision.final_status, {"Hold", "No-Go"})
         self.assertTrue(candidate.descriptors.alerts)
+
+    def test_gpu_profile_falls_back_without_crashing(self) -> None:
+        root = Path("work") / "test_runs" / uuid.uuid4().hex
+        result = run_pipeline(
+            PipelineConfig(
+                candidate_count=20,
+                compute_profile="gpu-accelerated",
+                output_dir=root,
+                cache_path=root / "cache.sqlite",
+            )
+        )
+        self.assertEqual(result.compute_profile["id"], "gpu-accelerated")
+        self.assertIn("gpu_status", result.compute_profile)
+        self.assertTrue(result.candidates)
 
 
 if __name__ == "__main__":

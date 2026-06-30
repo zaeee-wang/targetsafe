@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Target-SAFE Ablation Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 32px; color: #172033; }
+    h1, h2 { color: #14313d; }
+    pre { background: #f5f7fb; border: 1px solid #d8dee9; padding: 16px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>Target-SAFE Ablation Report</h1>
+  <p>This report compares decision-support layers. It is not an efficacy or safety claim.</p>
+  <h2>Summary</h2>
+  <pre>{
+  "run_id": "targetsafe_1782822137",
+  "current_system": "graph-grounded, threshold-sourced, critic-reviewed triage",
+  "status_counts": {
+    "Hold": 21,
+    "No-Go": 2
+  },
+  "critic_enabled": true,
+  "llm_role": "optional planner/report summarizer; not final decision maker",
+  "decision_layers": [
+    "descriptor hard gates",
+    "analog-supported QSAR interval",
+    "applicability-domain check",
+    "threshold registry provenance",
+    "evidence graph support",
+    "critic review"
+  ],
+  "planned_comparisons": [
+    "rule-only vs model-backed decision",
+    "critic off vs critic on",
+    "LLM-only explanation vs graph-grounded explanation",
+    "CPU-only vs optional GPU retrieval/ensemble"
+  ]
+}</pre>
+</body>
+</html>

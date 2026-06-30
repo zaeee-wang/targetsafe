@@ -22,16 +22,22 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
         desc = c.descriptors
         score = f"{d.total_score:.3f}" if d else "0.000"
         activity = f"{c.predicted_activity:.3f}" if c.predicted_activity is not None else ""
+        lower = ""
+        interval = c.prediction_interval or {}
+        if interval:
+            lower = f"{interval.get('lower', 0):.3f}"
         qed = f"{desc.qed:.3f}" if desc else ""
         logp = f"{desc.logp:.2f}" if desc else ""
         sa_score = f"{desc.sa_score:.2f}" if desc else ""
         alert_count = str(len(desc.alerts)) if desc else ""
+        criteria = ", ".join(f"{key}:{value}" for key, value in (d.criteria if d else {}).items())
         rows.append(
             "<tr>"
             f"<td>{html_escape(c.candidate_id)}</td>"
             f"<td>{html_escape(d.final_status if d else '')}</td>"
             f"<td>{score}</td>"
             f"<td>{activity}</td>"
+            f"<td>{lower}</td>"
             f"<td>{c.evidence_confidence:.3f}</td>"
             f"<td>{qed}</td>"
             f"<td>{logp}</td>"
@@ -39,6 +45,7 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
             f"<td>{alert_count}</td>"
             f"<td><code>{html_escape(c.smiles)}</code></td>"
             f"<td>{html_escape('; '.join(d.reasons[:2]) if d else '')}</td>"
+            f"<td>{html_escape(criteria)}</td>"
             "</tr>"
         )
 
@@ -55,6 +62,8 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
     th {{ background: #f1f5f9; text-align: left; }}
     code {{ word-break: break-all; white-space: normal; }}
     .note {{ background: #fff7ed; border-left: 4px solid #f97316; padding: 12px; }}
+    .grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }}
+    .box {{ border: 1px solid #d8dee9; padding: 12px; background: #fbfcff; }}
   </style>
 </head>
 <body>
@@ -62,24 +71,31 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
   <p class="note">This report is a decision-support artifact. It does not claim clinical efficacy,
   safety, or synthesizability. All candidates require expert and experimental confirmation.</p>
   <h2>Run Summary</h2>
-  <ul>
-    <li>Run ID: {html_escape(result.run_id)}</li>
-    <li>Target: {html_escape(result.evidence.target)}</li>
-    <li>Disease: {html_escape(result.evidence.disease)}</li>
-    <li>Status counts: {html_escape(status_counts)}</li>
-  </ul>
+  <div class="grid">
+    <div class="box"><b>Run ID</b><br>{html_escape(result.run_id)}</div>
+    <div class="box"><b>Target / Disease</b><br>{html_escape(result.evidence.target)} / {html_escape(result.evidence.disease)}</div>
+    <div class="box"><b>Compute profile</b><br>{html_escape((result.compute_profile or {}).get("label", ""))}</div>
+    <div class="box"><b>Status counts</b><br>{html_escape(status_counts)}</div>
+    <div class="box"><b>Evidence graph</b><br>{html_escape((result.evidence_graph or {}).get("summary", {}))}</div>
+    <div class="box"><b>QSAR model</b><br>{html_escape((result.model_card or {}).get("model_id", ""))}</div>
+  </div>
   <h2>Agent Plan</h2>
   <ol>{''.join(f'<li>{html_escape(step)}</li>' for step in result.plan)}</ol>
   <h2>Candidate Decisions</h2>
   <table>
     <thead>
       <tr>
-        <th>ID</th><th>Status</th><th>Score</th><th>Pred Activity</th><th>Evidence</th>
+        <th>ID</th><th>Status</th><th>Support</th><th>Pred pChEMBL</th><th>Lower</th><th>Evidence</th>
         <th>QED</th><th>LogP</th><th>SA</th><th>Alerts</th><th>SMILES</th><th>Reasons</th>
+        <th>Criteria</th>
       </tr>
     </thead>
     <tbody>{''.join(rows)}</tbody>
   </table>
+  <h2>Threshold Registry</h2>
+  <pre>{html_escape(json.dumps(result.threshold_registry, indent=2))}</pre>
+  <h2>Model Card</h2>
+  <pre>{html_escape(json.dumps(result.model_card, indent=2))}</pre>
   <h2>Class-Level Clinical/Regulatory Risk Checklist</h2>
   <ul>{''.join(f'<li><b>{html_escape(r.get("risk", ""))}</b>: {html_escape(r.get("interpretation", ""))}</li>' for r in result.evidence.regulatory_risks)}</ul>
   <h2>Tool Trace</h2>

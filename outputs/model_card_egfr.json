@@ -1,0 +1,28 @@
+{
+  "model_id": "egfr_analog_evidence_qsar_v1",
+  "target": "EGFR",
+  "disease_context": "EGFR mutation-positive NSCLC",
+  "model_type": "analog-supported QSAR fallback; scaffold-split sklearn model hook ready",
+  "rdkit_available": false,
+  "training_size": 3,
+  "activity_label": "pChEMBL when available; fallback pChEMBL is computed from listed nM reference controls",
+  "activity_range": {
+    "min": 7.48,
+    "mean": 8.033,
+    "max": 8.7
+  },
+  "applicability_domain": {
+    "method": "nearest reference analog similarity",
+    "threshold_id": "applicability_similarity_min",
+    "threshold_value": 0.18
+  },
+  "prediction_interval": {
+    "method": "nearest-neighbor activity spread widened for low similarity, sparse data, and alerts",
+    "threshold_id": "prediction_interval_width_max"
+  },
+  "limitations": [
+    "Offline fallback references are sufficient for demo triage, not for publication-grade potency modeling.",
+    "Live ChEMBL mode should be used to replace the fallback set before scientific interpretation.",
+    "Predictions are ranking aids and cannot establish efficacy or safety."
+  ]
+}
