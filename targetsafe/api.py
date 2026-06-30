@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from targetsafe.compute_profiles import profile_options
 from targetsafe.pipeline import PipelineConfig, run_pipeline
+from targetsafe.reference_drugs import known_context_for_smiles, reference_drug, reference_drugs
 
 
 DEFAULT_DISEASE = "EGFR mutation-positive NSCLC"
@@ -57,6 +58,19 @@ def compute_profiles() -> list[dict[str, Any]]:
     return profile_options()
 
 
+@app.get("/api/reference-drugs")
+def get_reference_drugs() -> list[dict[str, Any]]:
+    return reference_drugs(include_structures=True)
+
+
+@app.get("/api/reference-drugs/{drug_id}")
+def get_reference_drug(drug_id: str) -> dict[str, Any]:
+    drug = reference_drug(drug_id)
+    if drug is None:
+        raise HTTPException(status_code=404, detail="Reference drug not found.")
+    return drug
+
+
 @app.post("/api/runs")
 def create_run(request: RunRequest) -> dict[str, Any]:
     result = run_pipeline(
@@ -91,6 +105,16 @@ def get_run(run_id: str) -> dict[str, Any]:
 def get_evidence_graph(run_id: str) -> dict[str, Any]:
     payload = get_run(run_id)
     return payload.get("evidence_graph", {})
+
+
+@app.get("/api/runs/{run_id}/candidates/{candidate_id}/known-context")
+def get_candidate_known_context(run_id: str, candidate_id: str) -> dict[str, Any]:
+    payload = get_run(run_id)
+    candidates = payload.get("candidates", [])
+    for candidate in candidates:
+        if candidate.get("candidate_id") == candidate_id:
+            return known_context_for_smiles(str(candidate.get("smiles", "")))
+    raise HTTPException(status_code=404, detail="Candidate not found in current API process.")
 
 
 @app.get("/api/runs/{run_id}/report", response_class=HTMLResponse)

@@ -9,9 +9,11 @@ The project does **not** claim that AI invented a drug. It demonstrates how an a
 The earlier MVP was useful but too close to a rule-based table. This version adds:
 
 - React + TypeScript molecular digital twin UI.
+- Dark Pretendard-based research atlas UI with separated app sections.
 - FastAPI backend.
 - CPU/GPU/API compute profile selector.
-- RDKit 2D structure depiction and optional computed conformer view.
+- RDKit 2D structure depiction and interactive computed conformer view.
+- Known EGFR drug reference library with label-level risk context.
 - Threshold registry with source/rationale for every decision gate.
 - Analog-supported EGFR QSAR with prediction interval and applicability domain.
 - GraphRAG-lite evidence graph.
@@ -36,6 +38,15 @@ npm run dev
 ```
 
 The frontend runs at `http://127.0.0.1:5173` and proxies `/api` to the FastAPI backend.
+
+Main UI sections:
+
+- `Run Console`: configure and start a triage run.
+- `Molecule Atlas`: inspect candidate and reference-drug structures.
+- `Candidate Twin`: inspect one candidate in 2D/3D with decision rationale.
+- `Evidence Graph`: zoom and pan through graph-grounded evidence.
+- `Known Drugs & Risks`: review known EGFR TKI structures and label-level risk context.
+- `Reports`: model card, threshold registry, trace, and HTML report.
 
 ## Backup Streamlit Demo
 
@@ -85,9 +96,12 @@ User-facing guide:
 
 - `GET /api/health`
 - `GET /api/compute-profiles`
+- `GET /api/reference-drugs`
+- `GET /api/reference-drugs/{drug_id}`
 - `POST /api/runs`
 - `GET /api/runs/{run_id}`
 - `GET /api/runs/{run_id}/evidence-graph`
+- `GET /api/runs/{run_id}/candidates/{candidate_id}/known-context`
 - `GET /api/runs/{run_id}/report`
 - `GET /api/model-card/egfr`
 - `GET /api/thresholds`

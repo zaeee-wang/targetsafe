@@ -1,4 +1,4 @@
-import type { PipelineResult, RunRequest } from "./types";
+import type { KnownContext, PipelineResult, ReferenceDrug, RunRequest } from "./types";
 
 const API_BASE = import.meta.env.VITE_TARGETSAFE_API ?? "";
 
@@ -19,6 +19,22 @@ export async function fetchProfiles(): Promise<Array<Record<string, unknown>>> {
   const response = await fetch(`${API_BASE}/api/compute-profiles`);
   if (!response.ok) {
     throw new Error("Unable to load compute profiles.");
+  }
+  return response.json();
+}
+
+export async function fetchReferenceDrugs(): Promise<ReferenceDrug[]> {
+  const response = await fetch(`${API_BASE}/api/reference-drugs`);
+  if (!response.ok) {
+    throw new Error("Unable to load reference drugs.");
+  }
+  return response.json();
+}
+
+export async function fetchKnownContext(runId: string, candidateId: string): Promise<KnownContext> {
+  const response = await fetch(`${API_BASE}/api/runs/${runId}/candidates/${candidateId}/known-context`);
+  if (!response.ok) {
+    throw new Error("Unable to load candidate known-drug context.");
   }
   return response.json();
 }

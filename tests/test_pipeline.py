@@ -8,6 +8,7 @@ from targetsafe.chem import evaluate_smiles
 from targetsafe.decision import decide_candidate
 from targetsafe.models import CandidateRecord
 from targetsafe.pipeline import PipelineConfig, run_pipeline
+from targetsafe.reference_drugs import known_context_for_smiles, reference_drugs
 
 
 class TargetSafePipelineTests(unittest.TestCase):
@@ -61,6 +62,23 @@ class TargetSafePipelineTests(unittest.TestCase):
         self.assertEqual(result.compute_profile["id"], "gpu-accelerated")
         self.assertIn("gpu_status", result.compute_profile)
         self.assertTrue(result.candidates)
+
+    def test_reference_drug_library_has_structures_and_risk_context(self) -> None:
+        drugs = reference_drugs(include_structures=True)
+        self.assertGreaterEqual(len(drugs), 5)
+        for drug in drugs:
+            self.assertTrue(drug["smiles"])
+            self.assertTrue(drug["source_status"])
+            self.assertTrue(drug["label_risk_context"])
+            self.assertIn("structure_svg", drug)
+
+    def test_known_context_returns_similarity_without_decision_blocking(self) -> None:
+        context = known_context_for_smiles(
+            "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1"
+        )
+        self.assertIn("nearest_known_drugs", context)
+        self.assertGreaterEqual(len(context["nearest_known_drugs"]), 3)
+        self.assertIn("not candidate-specific toxicity", context["interpretation"])
 
 
 if __name__ == "__main__":

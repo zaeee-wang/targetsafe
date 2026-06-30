@@ -2,94 +2,73 @@
 
 ## Design Direction
 
-The UI now follows a quiet Apple-inspired product-gallery language:
+The UI has been redesigned as a dark molecular research atlas, not a landing page. The visual language uses:
 
-- white and parchment surfaces,
-- a single blue action color,
-- thin chrome and hairline borders,
-- molecule imagery treated as the primary artifact,
-- no decorative gradients,
-- no card shadows except a soft product-style shadow under molecule renders.
+- Pretendard typography,
+- black laboratory-stage surfaces,
+- large molecule figures,
+- thin evidence rails,
+- separated work sections,
+- minimal copy,
+- no crowded all-in-one dashboard.
 
-The goal is not to imitate a consumer landing page. The goal is to make the candidate molecule feel like the inspected product while preserving research-tool clarity.
+The goal is to make the molecule and its evidence state feel like the inspected research object.
 
-## First View
+## App Structure
 
-The first screen explains the workflow in three steps:
+Target-SAFE now uses six sections.
 
-1. select compute profile,
-2. run triage,
-3. inspect the molecular twin.
+1. `Run Console`
+   - Configure disease, target, seed SMILES, candidate count, compute profile, API/GPU/LLM toggles.
+   - Run the stable CPU demo or the selected profile.
 
-The `Run CPU demo` button gives first-time users a safe starting point. The normal `Run triage` action remains in the sticky top bar.
+2. `Molecule Atlas`
+   - Shows generated candidates and controls as large molecule figures.
+   - Shows known EGFR reference drugs in a separate reference lane.
 
-## Molecule Catalog
+3. `Candidate Twin`
+   - Shows the selected candidate as a molecular evidence twin.
+   - Supports 2D structure and interactive 3D conformer views.
+   - The 3D view is explicitly labeled as a computed conformer, not a binding pose.
 
-After a run, candidates appear as a molecule catalog instead of a plain table.
+4. `Evidence Graph`
+   - Provides a dedicated zoomable and pannable graph explorer.
+   - Supports node-type filter, edge-type filter, fit view, zoom controls, and selected-candidate centering.
 
-Each molecule card shows:
+5. `Known Drugs & Risks`
+   - Shows known EGFR TKI structures and known label-level adverse reaction context.
+   - Clearly states that known-drug risk context is not candidate-specific toxicity.
 
-- 2D structure image,
-- Go/Hold/No-Go status,
-- candidate ID,
-- conservative lower pChEMBL bound,
-- applicability-domain score,
-- source label.
+6. `Reports`
+   - Shows model card, threshold registry, agent trace, and report link.
 
-Selecting a molecule opens the molecular evidence twin.
+## Why This Fixes The Previous UI Problem
 
-## Molecular Evidence Twin
+The previous UI placed run setup, candidates, twin, graph, trace, and model card on one long page. That made the app look like a crowded dashboard and made first-time use unclear.
 
-The twin is the main inspection surface.
+The new UI separates actions by research intent:
 
-Left:
+- run first,
+- inspect structures,
+- inspect one candidate deeply,
+- inspect evidence graph,
+- inspect known drug risk context,
+- export reports.
 
-- large 2D molecular structure,
-- 3D model panel.
+This makes the system easier to demonstrate and easier for judges to understand.
 
-If RDKit is installed, the 2D structure and conformer can use RDKit outputs. If RDKit is unavailable, Target-SAFE renders a SMILES schematic and a fallback 3D layout so the UI remains visual and demonstrable.
+## Known Drug Risk Interpretation
 
-Center:
+Known EGFR drug side effects are shown only as reference context.
 
-- final decision,
-- main rationale,
-- conservative activity interval,
-- pass/review/block criteria.
+Target-SAFE does not say:
 
-Right:
+- a generated candidate has the same adverse effects,
+- label warnings prove candidate toxicity,
+- similarity is sufficient for safety conclusion.
 
-- target-fit rail,
-- QED/SA rail,
-- alert rail,
-- evidence graph rail.
+Target-SAFE does say:
 
-Footer:
-
-- nearest known analogs,
-- next validation steps.
-
-## Evidence Graph
-
-The graph connects:
-
-- candidate,
-- descriptor,
-- prediction,
-- known analogs,
-- thresholds,
-- structural alerts,
-- class-level clinical/regulatory risks,
-- final decision.
-
-The graph is used for explanation and traceability, not as a hidden scoring model.
-
-## Model Card And Trace
-
-The lower panels expose:
-
-- agent plan,
-- tool-call statuses,
-- EGFR QSAR model card,
-- report link.
-
-This answers the judging question: "Why did the agent decide this, and what evidence supports that decision?"
+- these are known EGFR TKI review topics,
+- similar scaffolds should be reviewed carefully,
+- follow-up assays and expert review are required.

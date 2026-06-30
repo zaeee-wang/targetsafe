@@ -111,8 +111,10 @@ export interface PipelineResult {
     target: string;
     disease: string;
     chembl_activities: Array<Record<string, unknown>>;
+    pubchem_records: Array<Record<string, unknown>>;
     clinical_trials: Array<Record<string, unknown>>;
     regulatory_risks: Array<Record<string, unknown>>;
+    known_inhibitors: ReferenceDrug[];
     evidence_notes: string[];
   };
   candidates: Candidate[];
@@ -144,4 +146,36 @@ export interface RunRequest {
   use_llm: boolean;
   use_gpu: boolean;
   enable_conformers: boolean;
+}
+
+export interface ReferenceDrug {
+  drug_id: string;
+  name: string;
+  smiles: string;
+  pubchem_cid: string;
+  chembl_id: string;
+  context: string;
+  activity_evidence: string;
+  label_risk_context: string[];
+  evidence_source: string;
+  source_status: string;
+  structure_svg?: string | null;
+}
+
+export interface KnownContextDrug {
+  drug_id: string;
+  name: string;
+  smiles: string;
+  pubchem_cid: string;
+  chembl_id: string;
+  similarity: number;
+  label_risk_context: string[];
+  evidence_source: string;
+  source_status: string;
+}
+
+export interface KnownContext {
+  schema: string;
+  interpretation: string;
+  nearest_known_drugs: KnownContextDrug[];
 }
