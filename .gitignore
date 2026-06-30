@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+work/*.sqlite
+work/test_runs/
+outputs/targetsafe_*_result.json
+outputs/targetsafe_*_targetsafe_report.html
