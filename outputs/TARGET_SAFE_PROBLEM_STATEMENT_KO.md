@@ -39,6 +39,7 @@ Target-SAFE는 EGFR 변이 양성 NSCLC를 파일럿으로 하는 Evidence-Gated
 - evidence graph가 candidate, descriptor, prediction, threshold, known analog, risk, decision을 연결한다.
 - Critic Agent가 invalid SMILES, severe alert, out-of-domain overclaim, API fallback, 근거 부족을 검토한다.
 - UI는 Run Console, Molecule Atlas, Candidate Twin, Evidence Graph, Known Drugs & Risks, Reports로 분리한다.
+- EGFR은 점수화가 가능한 파일럿 타깃으로 유지하고, 다른 타깃은 public drug atlas와 target expansion lane으로 분리해 과장된 범용성을 주장하지 않는다.
 
 ## 4. Known drug와 부작용 정보를 쓰는 방식
 
@@ -79,8 +80,22 @@ Target-SAFE의 기여는 다음과 같이 정리된다.
 - GPU와 LLM이 없어도 동작하고, 있을 때는 embedding, uncertainty, graph-grounded report 품질 향상에 사용하도록 분리했다.
 - UI를 단일 landing page가 아니라 실행 가능한 research app으로 구성했다.
 - known drug adverse effect를 candidate toxicity처럼 오해하지 않도록 별도 evidence layer로 분리했다.
+- RDKit이 없는 환경에서도 더 나은 2D bond-line fallback을 제공하고, computed conformer를 PyMOL/Avogadro에서 열 수 있는 XYZ 파일로 내보낼 수 있게 했다.
+- Evidence graph는 전체 노드를 한꺼번에 보여주지 않고, 기본적으로 선택 후보 주변 근거를 보여주어 라벨 겹침과 해석 불가능성을 줄였다.
 
-## 7. 우리가 주장하지 않는 것
+## 7. 왜 EGFR 파일럿인가
+
+현재 Go/Hold/No-Go 점수화는 EGFR 변이 양성 NSCLC 파일럿에 맞춰져 있다. 그 이유는 타깃마다 assay endpoint, 활성 기준, 구조적 risk, applicability domain, known drug context가 달라지기 때문이다.
+
+따라서 Target-SAFE는 다음처럼 범위를 나눈다.
+
+- EGFR: 현재 scoring pilot. QSAR interval, applicability domain, known EGFR TKI context, evidence graph decision을 제공한다.
+- ALK, BRAF, KRAS, HER2 등: public drug atlas와 UI lane은 제공하지만, EGFR QSAR를 그대로 재사용하지 않는다.
+- 다른 타깃으로 확장하려면 해당 타깃의 ChEMBL assay set, known inhibitor library, threshold registry, model card를 별도로 구축해야 한다.
+
+이 제한을 드러내는 것은 약점이 아니라 연구 윤리와 과학적 타당성을 위한 장치이다. "아무 타깃이나 점수화한다"는 주장은 심사에서 오히려 위험하다.
+
+## 8. 우리가 주장하지 않는 것
 
 Target-SAFE는 다음을 주장하지 않는다.
 

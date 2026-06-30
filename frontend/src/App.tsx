@@ -39,7 +39,7 @@ const DEFAULT_REQUEST: RunRequest = {
   target: "EGFR",
   seed_smiles: "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
   optimization_goal: "Maintain drug-likeness, reduce toxicity alerts, preserve EGFR evidence confidence",
-  candidate_count: 60,
+  candidate_count: 160,
   compute_profile: "cpu-demo",
   allow_network: false,
   use_llm: false,
@@ -119,7 +119,7 @@ export default function App() {
     try {
       const payload = await createRun(nextRequest);
       setResult(payload);
-      setSelectedId(payload.candidates[0]?.candidate_id ?? "");
+      setSelectedId(payload.candidates.find((candidate) => candidate.candidate_id.startsWith("C"))?.candidate_id ?? payload.candidates[0]?.candidate_id ?? "");
       setMoleculeView("2d");
       setActiveView("atlas");
     } catch (exc) {
@@ -341,7 +341,7 @@ function RunConsole({
               <input
                 type="number"
                 min={20}
-                max={120}
+                max={500}
                 value={request.candidate_count}
                 onChange={(event) => onRequestChange({ ...request, candidate_count: Number(event.target.value) })}
               />
@@ -367,6 +367,79 @@ function RunConsole({
           {error && <div className="error-box">{error}</div>}
         </section>
       </div>
+      <ProfileMatrix profiles={profiles} selectedProfile={request.compute_profile} />
+      <TargetScopePanel />
+    </section>
+  );
+}
+
+function ProfileMatrix({
+  profiles,
+  selectedProfile
+}: {
+  profiles: Array<Record<string, unknown>>;
+  selectedProfile: string;
+}) {
+  const features = [
+    ["allow_network", "Live evidence APIs"],
+    ["use_gpu", "GPU embeddings / retrieval"],
+    ["use_llm", "LLM graph-grounded report"],
+    ["train_qsar", "QSAR refresh"],
+    ["use_cached_demo", "Offline deterministic cache"]
+  ];
+  return (
+    <section className="profile-matrix" aria-label="Compute profile differences">
+      <div>
+        <p className="eyebrow">Compute profiles</p>
+        <h3>What changes when you switch compute mode</h3>
+      </div>
+      <div className="profile-grid">
+        {profiles.map((profile) => (
+          <article className={String(profile.id) === selectedProfile ? "selected" : ""} key={String(profile.id)}>
+            <strong>{String(profile.label)}</strong>
+            <p>{String(profile.description)}</p>
+            <div className="profile-features">
+              {features.map(([key, label]) => (
+                <span className={profile[key] ? "on" : "off"} key={key}>
+                  {profile[key] ? "on" : "off"} / {label}
+                </span>
+              ))}
+            </div>
+            <small>{String(profile.expected_runtime ?? "")}</small>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TargetScopePanel() {
+  const targets = [
+    ["EGFR", "full scoring pilot", "QSAR interval, AD check, known TKI context, and decision graph are enabled."],
+    ["ALK", "evidence expansion", "Reference atlas and live evidence hooks are ready; target-specific QSAR needs ALK assay refresh."],
+    ["BRAF", "evidence expansion", "Reference atlas and live evidence hooks are ready; target-specific QSAR needs BRAF assay refresh."],
+    ["KRAS", "evidence expansion", "Reference atlas and live evidence hooks are ready; target-specific covalent chemistry rules are needed."],
+    ["HER2", "evidence expansion", "Reference atlas and live evidence hooks are ready; target-specific assay set is needed."]
+  ];
+  return (
+    <section className="target-scope-panel" aria-label="Target expansion map">
+      <div>
+        <p className="eyebrow">Target scope</p>
+        <h3>EGFR is the scored pilot; other targets are expansion lanes.</h3>
+        <p>
+          The app can browse broad public drug structures now. Scientific Go/Hold/No-Go scoring remains target-specific,
+          so non-EGFR targets should not reuse the EGFR QSAR without their own assay evidence.
+        </p>
+      </div>
+      <div className="target-scope-grid">
+        {targets.map(([target, status, text]) => (
+          <article key={target} className={target === "EGFR" ? "active" : ""}>
+            <strong>{target}</strong>
+            <span>{status}</span>
+            <p>{text}</p>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }
@@ -385,6 +458,7 @@ function MoleculeAtlas({
   onOpenKnown: () => void;
 }) {
   const candidates = result?.candidates ?? [];
+  const visibleCandidates = candidates.slice(0, 96);
   const heroCandidate = candidates[0];
   return (
     <section className="view-frame atlas-view">
@@ -422,14 +496,14 @@ function MoleculeAtlas({
           <div className="panel-heading">
             <div>
               <p className="eyebrow">Generated and control set</p>
-              <h3>{candidates.length || 0} molecules</h3>
+              <h3>{visibleCandidates.length || 0} shown / {candidates.length || 0} scored</h3>
             </div>
           </div>
           {candidates.length === 0 ? (
             <EmptyPanel icon={<Search />} title="No run yet" text="Use Run Console to create the first candidate atlas." />
           ) : (
             <div className="molecule-grid">
-              {candidates.slice(0, 24).map((candidate) => (
+              {visibleCandidates.map((candidate) => (
                 <button
                   className={`molecule-card ${selectedId === candidate.candidate_id ? "selected" : ""}`}
                   onClick={() => onSelectCandidate(candidate.candidate_id)}
@@ -446,8 +520,8 @@ function MoleculeAtlas({
                   <small>lower pChEMBL {formatNumber(candidate.prediction_interval?.lower, 2)}</small>
                   <small>AD {formatNumber(candidate.applicability_score, 2)} / {candidate.source.replaceAll("_", " ")}</small>
                 </button>
-              ))}
-            </div>
+            ))}
+          </div>
           )}
         </section>
 
@@ -459,10 +533,14 @@ function MoleculeAtlas({
             </div>
           </div>
           <div className="reference-list">
-            {referenceDrugs.map((drug) => (
+            {referenceDrugs.slice(0, 24).map((drug) => (
               <article className="reference-card" key={drug.drug_id}>
                 <div className="reference-structure">
-                  {drug.structure_svg ? <img src={drug.structure_svg} alt={`${drug.name} structure`} /> : <span>No figure</span>}
+                  {drug.structure_svg || drug.structure_image_url ? (
+                    <img src={(drug.structure_svg || drug.structure_image_url) ?? undefined} alt={`${drug.name} structure`} />
+                  ) : (
+                    <span>No figure</span>
+                  )}
                 </div>
                 <div>
                   <strong>{drug.name}</strong>
@@ -523,7 +601,7 @@ function CandidateTwin({
               {candidate.structure_svg ? <img src={candidate.structure_svg} alt={`${candidate.candidate_id} 2D structure`} /> : <span>No 2D depiction</span>}
             </div>
           ) : (
-            <InteractiveConformerView conformer={candidate.conformer} />
+            <InteractiveConformerView conformer={candidate.conformer} candidateId={candidate.candidate_id} />
           )}
           <p className="viewer-warning">
             3D view is a computed conformer for spatial inspection, not a validated binding pose.
@@ -580,7 +658,7 @@ function CandidateTwin({
   );
 }
 
-function InteractiveConformerView({ conformer }: { conformer: ConformerPayload | null }) {
+function InteractiveConformerView({ conformer, candidateId }: { conformer: ConformerPayload | null; candidateId: string }) {
   const [angle, setAngle] = useState(22);
   const [zoom, setZoom] = useState(1);
   const atoms = (conformer?.atoms ?? []).slice(0, 64);
@@ -605,7 +683,32 @@ function InteractiveConformerView({ conformer }: { conformer: ConformerPayload |
         <button onClick={() => setZoom((value) => Math.max(0.62, value - 0.12))} type="button" title="Zoom out"><ZoomOut size={15} /></button>
         <button onClick={() => { setAngle(22); setZoom(1); }} type="button" title="Reset view"><RotateCcw size={15} /></button>
       </div>
+      <a className="xyz-export" href={xyzDataUri(candidateId, atoms)} download={`${candidateId}_computed_conformer.xyz`}>
+        Export XYZ for PyMOL / Avogadro
+      </a>
       <svg viewBox="0 0 760 520" role="img" aria-label="Interactive computed conformer">
+        <defs>
+          <radialGradient id="atom-C" cx="35%" cy="30%">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="100%" stopColor="#c8c2b8" />
+          </radialGradient>
+          <radialGradient id="atom-N" cx="35%" cy="30%">
+            <stop offset="0%" stopColor="#dceaff" />
+            <stop offset="100%" stopColor="#4c88e8" />
+          </radialGradient>
+          <radialGradient id="atom-O" cx="35%" cy="30%">
+            <stop offset="0%" stopColor="#ffe1dc" />
+            <stop offset="100%" stopColor="#e6554f" />
+          </radialGradient>
+          <radialGradient id="atom-F" cx="35%" cy="30%">
+            <stop offset="0%" stopColor="#e4ffd8" />
+            <stop offset="100%" stopColor="#7cc55e" />
+          </radialGradient>
+          <radialGradient id="atom-Cl" cx="35%" cy="30%">
+            <stop offset="0%" stopColor="#e4ffd8" />
+            <stop offset="100%" stopColor="#6caf53" />
+          </radialGradient>
+        </defs>
         <rect width="760" height="520" rx="26" />
         {bonds.map((bond, index) => {
           const a = byIndex.get(bond.begin);
@@ -618,8 +721,13 @@ function InteractiveConformerView({ conformer }: { conformer: ConformerPayload |
           .sort((a, b) => a.depth - b.depth)
           .map((atom) => (
             <g key={atom.index}>
-              <circle cx={atom.x} cy={atom.y} r={atom.element === "H" ? 5 : 9 + atom.depth * 4} className={`atom atom-${atom.element}`} />
-              {atom.element !== "H" && <text x={atom.x} y={atom.y + 3}>{atom.element}</text>}
+              <circle
+                cx={atom.x}
+                cy={atom.y}
+                r={atom.element === "H" ? 5 : 9 + atom.depth * 4}
+                className={`atom atom-${atom.element}`}
+                fill={`url(#atom-${["C", "N", "O", "F", "Cl"].includes(atom.element) ? atom.element : "C"})`}
+              />
             </g>
           ))}
       </svg>
@@ -640,14 +748,17 @@ function EvidenceGraphExplorer({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragStart, setDragStart] = useState<{ x: number; y: number; panX: number; panY: number } | null>(null);
+  const [graphScope, setGraphScope] = useState("selected");
   const [nodeFilter, setNodeFilter] = useState("all");
   const [edgeFilter, setEdgeFilter] = useState("all");
 
   const nodes = graph?.nodes ?? [];
   const edges = graph?.edges ?? [];
-  const nodeTypes = ["all", ...Array.from(new Set(nodes.map((node) => node.type))).sort()];
+  const scopedIds = useMemo(() => graphScopeIds(nodes, edges, graphScope, selected), [nodes, edges, graphScope, selected]);
+  const scopedNodes = nodes.filter((node) => scopedIds.has(node.id));
+  const nodeTypes = ["all", ...Array.from(new Set(scopedNodes.map((node) => node.type))).sort()];
   const edgeTypes = ["all", ...Array.from(new Set(edges.map((edge) => edge.type))).sort()];
-  const visibleNodes = nodeFilter === "all" ? nodes : nodes.filter((node) => node.type === nodeFilter);
+  const visibleNodes = nodeFilter === "all" ? scopedNodes : scopedNodes.filter((node) => node.type === nodeFilter);
   const visibleIds = new Set(visibleNodes.map((node) => node.id));
   const visibleEdges = edges.filter((edge) => {
     const passType = edgeFilter === "all" || edge.type === edgeFilter;
@@ -655,6 +766,7 @@ function EvidenceGraphExplorer({
   });
   const layout = useMemo(() => graphLayout(visibleNodes), [visibleNodes]);
   const selectedSet = new Set(selected?.evidence_node_ids ?? []);
+  const showLabels = visibleNodes.length < 90 || zoom >= 1.45;
 
   function fitView() {
     setZoom(1);
@@ -677,6 +789,11 @@ function EvidenceGraphExplorer({
           <h2>Zoomable decision graph.</h2>
         </div>
         <div className="graph-toolbar">
+          <select value={graphScope} onChange={(event) => setGraphScope(event.target.value)} aria-label="Graph scope">
+            <option value="selected">selected candidate neighborhood</option>
+            <option value="summary">assay / risk / threshold summary</option>
+            <option value="all">all nodes, labels on zoom</option>
+          </select>
           <select value={nodeFilter} onChange={(event) => setNodeFilter(event.target.value)} aria-label="Node type filter">
             {nodeTypes.map((type) => <option key={type} value={type}>{type}</option>)}
           </select>
@@ -723,7 +840,9 @@ function EvidenceGraphExplorer({
                     onDoubleClick={() => candidateId && onSelectCandidate(candidateId, "twin")}
                   >
                     <circle cx={point.x} cy={point.y} r={node.type === "candidate" ? 15 : 10} className={`node ${node.type}`} />
-                    <text x={point.x + 16} y={point.y + 5}>{label.slice(0, 30)}</text>
+                    {(showLabels || selectedSet.has(node.id) || node.type === "target" || node.type === "decision") && (
+                      <text x={point.x + 16} y={point.y + 5}>{label.slice(0, 30)}</text>
+                    )}
                   </g>
                 );
               })}
@@ -768,10 +887,16 @@ function KnownDrugsAndRisks({
           {referenceDrugs.map((drug) => (
             <article className="known-drug-card" key={drug.drug_id}>
               <div className="known-drug-figure">
-                {drug.structure_svg ? <img src={drug.structure_svg} alt={`${drug.name} structure`} /> : <span>No structure</span>}
+                {drug.structure_svg || drug.structure_image_url ? (
+                  <img src={(drug.structure_svg || drug.structure_image_url) ?? undefined} alt={`${drug.name} structure`} />
+                ) : (
+                  <span>No structure</span>
+                )}
               </div>
               <div>
-                <p className="eyebrow">{drug.chembl_id} / PubChem {drug.pubchem_cid}</p>
+                <p className="eyebrow">
+                  {drug.category ?? "reference"} {drug.chembl_id ? `/ ${drug.chembl_id}` : ""} {drug.pubchem_cid ? `/ PubChem ${drug.pubchem_cid}` : ""}
+                </p>
                 <h3>{drug.name}</h3>
                 <p>{drug.activity_evidence}</p>
                 <div className="risk-list">
@@ -896,6 +1021,38 @@ function EmptyPanel({ icon, title, text }: { icon: ReactNode; title: string; tex
   );
 }
 
+function graphScopeIds(
+  nodes: Array<Record<string, unknown> & { id: string; type: string; label?: string }>,
+  edges: Array<{ source: string; target: string; type: string; weight?: number }>,
+  scope: string,
+  selected: Candidate | null
+) {
+  if (scope === "all") return new Set(nodes.map((node) => node.id));
+  if (scope === "summary") {
+    const summaryTypes = new Set(["target", "disease", "threshold", "assay", "class_risk"]);
+    return new Set(nodes.filter((node) => summaryTypes.has(node.type)).map((node) => node.id));
+  }
+  if (!selected) return new Set(nodes.filter((node) => ["target", "disease", "threshold", "assay", "class_risk"].includes(node.type)).map((node) => node.id));
+  const ids = new Set<string>([
+    "target_EGFR",
+    "disease_context",
+    `candidate_${selected.candidate_id}`,
+    `descriptor_${selected.candidate_id}`,
+    `prediction_${selected.candidate_id}`,
+    `decision_${selected.candidate_id}`,
+    `alert_${selected.candidate_id}`
+  ]);
+  for (let depth = 0; depth < 2; depth += 1) {
+    for (const edge of edges) {
+      if (ids.has(edge.source) || ids.has(edge.target)) {
+        ids.add(edge.source);
+        ids.add(edge.target);
+      }
+    }
+  }
+  return ids;
+}
+
 function graphLayout(nodes: Array<Record<string, unknown> & { id: string; type: string; label?: string }>) {
   const typeOrder = ["target", "disease", "candidate", "descriptor", "model_prediction", "decision", "known_analog", "threshold", "assay", "class_risk", "structural_alert"];
   const byType = new Map<string, typeof nodes>();
@@ -949,6 +1106,15 @@ function projectConformer(atoms: ConformerPayload["atoms"], angle: number, zoom:
       depth
     };
   });
+}
+
+function xyzDataUri(candidateId: string, atoms: ConformerPayload["atoms"]) {
+  const body = [
+    String(atoms.length),
+    `${candidateId} computed conformer from Target-SAFE; not a validated binding pose.`,
+    ...atoms.map((atom) => `${atom.element} ${atom.x.toFixed(4)} ${atom.y.toFixed(4)} ${atom.z.toFixed(4)}`)
+  ].join("\n");
+  return `data:chemical/x-xyz;charset=utf-8,${encodeURIComponent(body)}`;
 }
 
 function normalize(value: number, min: number, max: number) {

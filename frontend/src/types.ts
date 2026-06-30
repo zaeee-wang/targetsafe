@@ -160,6 +160,10 @@ export interface ReferenceDrug {
   evidence_source: string;
   source_status: string;
   structure_svg?: string | null;
+  structure_image_url?: string | null;
+  category?: string;
+  pchembl?: number;
+  activity_nM?: number;
 }
 
 export interface KnownContextDrug {

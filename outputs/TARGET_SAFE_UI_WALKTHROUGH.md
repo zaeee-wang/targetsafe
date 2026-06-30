@@ -21,22 +21,28 @@ Target-SAFE now uses six sections.
 1. `Run Console`
    - Configure disease, target, seed SMILES, candidate count, compute profile, API/GPU/LLM toggles.
    - Run the stable CPU demo or the selected profile.
+   - Compare compute profiles side by side, so CPU demo, GPU accelerated, API assisted, and full research modes are visibly different.
+   - Review the target expansion map: EGFR is the scored pilot, while ALK/BRAF/KRAS/HER2 are expansion lanes that need target-specific evidence before scoring.
 
 2. `Molecule Atlas`
-   - Shows generated candidates and controls as large molecule figures.
-   - Shows known EGFR reference drugs in a separate reference lane.
+   - Shows up to 96 generated candidates and controls as large molecule figures.
+   - Shows known EGFR reference drugs and broader public drug atlas entries.
+   - Uses improved fallback bond-line drawings when RDKit is unavailable.
 
 3. `Candidate Twin`
    - Shows the selected candidate as a molecular evidence twin.
    - Supports 2D structure and interactive 3D conformer views.
    - The 3D view is explicitly labeled as a computed conformer, not a binding pose.
+   - Exports a simple `.xyz` conformer file for external viewers such as PyMOL or Avogadro.
 
 4. `Evidence Graph`
    - Provides a dedicated zoomable and pannable graph explorer.
-   - Supports node-type filter, edge-type filter, fit view, zoom controls, and selected-candidate centering.
+   - Defaults to selected-candidate neighborhood view to avoid label overlap.
+   - Supports graph scope, node-type filter, edge-type filter, fit view, zoom controls, and selected-candidate centering.
 
 5. `Known Drugs & Risks`
    - Shows known EGFR TKI structures and known label-level adverse reaction context.
+   - Adds broader public drug atlas entries for visual browsing of existing drug-like molecules.
    - Clearly states that known-drug risk context is not candidate-specific toxicity.
 
 6. `Reports`

@@ -13,7 +13,11 @@ The earlier MVP was useful but too close to a rule-based table. This version add
 - FastAPI backend.
 - CPU/GPU/API compute profile selector.
 - RDKit 2D structure depiction and interactive computed conformer view.
-- Known EGFR drug reference library with label-level risk context.
+- Improved fallback 2D bond-line depiction when RDKit is unavailable.
+- Known EGFR drug reference library plus a broader public drug atlas.
+- Computed conformer XYZ export for external viewers such as PyMOL or Avogadro.
+- Compute profile comparison matrix and target expansion map.
+- Scoped evidence graph view to avoid unreadable all-node label overlap.
 - Threshold registry with source/rationale for every decision gate.
 - Analog-supported EGFR QSAR with prediction interval and applicability domain.
 - GraphRAG-lite evidence graph.
@@ -42,10 +46,10 @@ The frontend runs at `http://127.0.0.1:5173` and proxies `/api` to the FastAPI b
 Main UI sections:
 
 - `Run Console`: configure and start a triage run.
-- `Molecule Atlas`: inspect candidate and reference-drug structures.
-- `Candidate Twin`: inspect one candidate in 2D/3D with decision rationale.
-- `Evidence Graph`: zoom and pan through graph-grounded evidence.
-- `Known Drugs & Risks`: review known EGFR TKI structures and label-level risk context.
+- `Molecule Atlas`: inspect up to 96 candidate previews and public/reference-drug structures.
+- `Candidate Twin`: inspect one candidate in 2D/3D with decision rationale and XYZ export.
+- `Evidence Graph`: zoom and pan through scoped graph-grounded evidence.
+- `Known Drugs & Risks`: review known EGFR TKI structures, label-level risk context, and a broader public drug atlas.
 - `Reports`: model card, threshold registry, trace, and HTML report.
 
 ## Backup Streamlit Demo
@@ -109,3 +113,5 @@ User-facing guide:
 ## Safety And Scope
 
 Target-SAFE is a decision-support artifact. Generated candidates, predicted activity, conformers, and graph explanations require medicinal chemistry review and experimental confirmation. Clinical and regulatory signals are class-level context only.
+
+EGFR is the scored scientific pilot. Other target families can be shown in the public drug atlas, but Go/Hold/No-Go scoring should not be reused for non-EGFR targets until target-specific assay evidence, applicability-domain checks, and thresholds are added.

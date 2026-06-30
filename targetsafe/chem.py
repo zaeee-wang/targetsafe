@@ -89,40 +89,11 @@ def mol_svg_data_uri(smiles: str) -> str | None:
 def _fallback_smiles_svg_data_uri(smiles: str) -> str | None:
     if not _heuristic_valid_smiles(smiles):
         return None
-    atoms = re.findall(r"Cl|Br|[BCNOFPSI]|[bcnops]", smiles)
-    atoms = [atom.capitalize() for atom in atoms if atom.strip()][:18]
-    if not atoms:
+    graph = _parse_smiles_graph(smiles, max_atoms=90)
+    if not graph["atoms"]:
         return None
-    width = 320
-    height = 190
-    step = min(44, max(22, int((width - 54) / max(len(atoms) - 1, 1))))
-    start_x = 28
-    points = []
-    for idx, atom in enumerate(atoms):
-        x = start_x + idx * step
-        y = 92 + (18 if idx % 2 else -18)
-        points.append((x, y, atom))
-    lines = []
-    circles = []
-    for idx, (x, y, atom) in enumerate(points):
-        if idx:
-            px, py, _ = points[idx - 1]
-            lines.append(f'<line x1="{px}" y1="{py}" x2="{x}" y2="{y}" stroke="#7d8e87" stroke-width="2"/>')
-        color = _atom_color(atom)
-        circles.append(
-            f'<circle cx="{x}" cy="{y}" r="13" fill="{color}" stroke="#176c73" stroke-width="1.5"/>'
-            f'<text x="{x}" y="{y + 4}" text-anchor="middle" font-size="11" font-family="Arial" fill="#142421" font-weight="700">{html.escape(atom)}</text>'
-        )
-    svg = "".join(
-        [
-            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
-            '<rect width="100%" height="100%" fill="#fbfdfb"/>',
-            '<text x="16" y="22" font-family="Arial" font-size="11" fill="#384742">SMILES schematic fallback</text>',
-            "".join(lines),
-            "".join(circles),
-            "</svg>",
-        ]
-    )
+    coords = _layout_smiles_graph(graph["atoms"], graph["bonds"])
+    svg = _render_bond_line_svg(graph["atoms"], graph["bonds"], coords)
     encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
     return f"data:image/svg+xml;base64,{encoded}"
 
@@ -138,6 +109,226 @@ def _atom_color(atom: str) -> str:
         "S": "#fff2bf",
     }
     return colors.get(atom, "#ffffff")
+
+
+def _parse_smiles_graph(smiles: str, max_atoms: int = 90) -> dict[str, list[dict[str, object]]]:
+    atoms: list[dict[str, object]] = []
+    bonds: list[dict[str, object]] = []
+    stack: list[int | None] = []
+    rings: dict[str, tuple[int, float]] = {}
+    current: int | None = None
+    pending_order = 1.0
+    i = 0
+    while i < len(smiles) and len(atoms) < max_atoms:
+        ch = smiles[i]
+        if ch in "-:":
+            pending_order = 1.0
+            i += 1
+            continue
+        if ch == "=":
+            pending_order = 2.0
+            i += 1
+            continue
+        if ch == "#":
+            pending_order = 3.0
+            i += 1
+            continue
+        if ch in "/\\":
+            i += 1
+            continue
+        if ch == "(":
+            stack.append(current)
+            i += 1
+            continue
+        if ch == ")":
+            current = stack.pop() if stack else current
+            i += 1
+            continue
+        if ch.isdigit():
+            if current is not None:
+                if ch in rings:
+                    other, order = rings.pop(ch)
+                    if other != current:
+                        bonds.append({"begin": other, "end": current, "order": pending_order or order})
+                else:
+                    rings[ch] = (current, pending_order)
+            pending_order = 1.0
+            i += 1
+            continue
+        atom, jump = _read_smiles_atom(smiles, i)
+        if atom:
+            index = len(atoms)
+            atoms.append({"index": index, "element": atom, "aromatic": smiles[i].islower()})
+            if current is not None:
+                bonds.append({"begin": current, "end": index, "order": pending_order})
+            current = index
+            pending_order = 1.0
+            i += jump
+            continue
+        i += 1
+    return {"atoms": atoms, "bonds": bonds}
+
+
+def _read_smiles_atom(smiles: str, index: int) -> tuple[str | None, int]:
+    if smiles[index] == "[":
+        end = smiles.find("]", index + 1)
+        if end == -1:
+            return None, 1
+        token = smiles[index + 1 : end]
+        match = re.search(r"Cl|Br|[A-Z][a-z]?|[bcnops]", token)
+        if not match:
+            return None, end - index + 1
+        return match.group(0).capitalize(), end - index + 1
+    two = smiles[index : index + 2]
+    if two in {"Cl", "Br"}:
+        return two, 2
+    ch = smiles[index]
+    if ch in "BCNOFPSI" or ch in "bcnops":
+        return ch.capitalize(), 1
+    return None, 1
+
+
+def _layout_smiles_graph(
+    atoms: list[dict[str, object]],
+    bonds: list[dict[str, object]],
+) -> list[tuple[float, float]]:
+    n = len(atoms)
+    if n == 1:
+        return [(0.0, 0.0)]
+    adjacency: list[list[int]] = [[] for _ in range(n)]
+    for bond in bonds:
+        a = int(bond["begin"])
+        b = int(bond["end"])
+        if a < n and b < n:
+            adjacency[a].append(b)
+            adjacency[b].append(a)
+
+    coords: list[tuple[float, float]] = []
+    for idx in range(n):
+        angle = idx * 2.399963
+        radius = 36.0 * math.sqrt(idx + 1)
+        coords.append((math.cos(angle) * radius, math.sin(angle) * radius))
+
+    for _ in range(120):
+        forces = [[0.0, 0.0] for _ in range(n)]
+        for i in range(n):
+            xi, yi = coords[i]
+            for j in range(i + 1, n):
+                xj, yj = coords[j]
+                dx = xi - xj
+                dy = yi - yj
+                dist_sq = max(20.0, dx * dx + dy * dy)
+                force = 720.0 / dist_sq
+                dist = math.sqrt(dist_sq)
+                fx = force * dx / dist
+                fy = force * dy / dist
+                forces[i][0] += fx
+                forces[i][1] += fy
+                forces[j][0] -= fx
+                forces[j][1] -= fy
+        for bond in bonds:
+            a = int(bond["begin"])
+            b = int(bond["end"])
+            if a >= n or b >= n:
+                continue
+            ax, ay = coords[a]
+            bx, by = coords[b]
+            dx = bx - ax
+            dy = by - ay
+            dist = max(1.0, math.sqrt(dx * dx + dy * dy))
+            target = 46.0 if float(bond.get("order", 1.0)) < 2 else 42.0
+            force = (dist - target) * 0.034
+            fx = force * dx / dist
+            fy = force * dy / dist
+            forces[a][0] += fx
+            forces[a][1] += fy
+            forces[b][0] -= fx
+            forces[b][1] -= fy
+        coords = [
+            (x + max(-6.0, min(6.0, fx)), y + max(-6.0, min(6.0, fy)))
+            for (x, y), (fx, fy) in zip(coords, forces)
+        ]
+    return coords
+
+
+def _render_bond_line_svg(
+    atoms: list[dict[str, object]],
+    bonds: list[dict[str, object]],
+    coords: list[tuple[float, float]],
+) -> str:
+    width = 640
+    height = 420
+    xs = [x for x, _ in coords]
+    ys = [y for _, y in coords]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    span_x = max(1.0, max_x - min_x)
+    span_y = max(1.0, max_y - min_y)
+    scale = min((width - 90) / span_x, (height - 80) / span_y, 3.2)
+
+    def project(point: tuple[float, float]) -> tuple[float, float]:
+        x, y = point
+        return (
+            45 + (x - min_x) * scale + ((width - 90) - span_x * scale) / 2,
+            40 + (y - min_y) * scale + ((height - 80) - span_y * scale) / 2,
+        )
+
+    lines: list[str] = []
+    for bond in bonds:
+        a = int(bond["begin"])
+        b = int(bond["end"])
+        if a >= len(coords) or b >= len(coords):
+            continue
+        x1, y1 = project(coords[a])
+        x2, y2 = project(coords[b])
+        order = float(bond.get("order", 1.0))
+        if order == 2.0:
+            dx, dy = x2 - x1, y2 - y1
+            dist = max(1.0, math.sqrt(dx * dx + dy * dy))
+            ox, oy = -dy / dist * 4.0, dx / dist * 4.0
+            lines.append(_svg_line(x1 + ox, y1 + oy, x2 + ox, y2 + oy, 2.2))
+            lines.append(_svg_line(x1 - ox, y1 - oy, x2 - ox, y2 - oy, 2.2))
+        elif order >= 3.0:
+            lines.append(_svg_line(x1, y1, x2, y2, 4.0))
+        else:
+            lines.append(_svg_line(x1, y1, x2, y2, 2.7))
+
+    labels: list[str] = []
+    for atom, point in zip(atoms, coords):
+        element = str(atom["element"])
+        if element == "C":
+            continue
+        x, y = project(point)
+        color = {
+            "N": "#1657d9",
+            "O": "#d0342c",
+            "F": "#2f8a25",
+            "Cl": "#2f8a25",
+            "Br": "#8b4a17",
+            "S": "#b88400",
+        }.get(element, "#111111")
+        labels.append(
+            f'<text x="{x:.1f}" y="{y + 5:.1f}" text-anchor="middle" '
+            f'font-family="Arial, sans-serif" font-size="18" font-weight="700" '
+            f'fill="{color}" stroke="#ffffff" stroke-width="4" paint-order="stroke">{html.escape(element)}</text>'
+        )
+
+    return "".join(
+        [
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+            '<rect width="100%" height="100%" fill="transparent"/>',
+            "".join(lines),
+            "".join(labels),
+            "</svg>",
+        ]
+    )
+
+
+def _svg_line(x1: float, y1: float, x2: float, y2: float, width: float) -> str:
+    return (
+        f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
+        f'stroke="#111111" stroke-width="{width:.1f}" stroke-linecap="round"/>'
+    )
 
 
 def mol_conformer_payload(smiles: str) -> dict[str, object] | None:

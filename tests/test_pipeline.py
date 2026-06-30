@@ -66,11 +66,13 @@ class TargetSafePipelineTests(unittest.TestCase):
     def test_reference_drug_library_has_structures_and_risk_context(self) -> None:
         drugs = reference_drugs(include_structures=True)
         self.assertGreaterEqual(len(drugs), 5)
+        scoring_refs = [drug for drug in drugs if drug.get("smiles")]
+        self.assertGreaterEqual(len(scoring_refs), 5)
+        self.assertGreaterEqual(len(drugs), 40)
         for drug in drugs:
-            self.assertTrue(drug["smiles"])
             self.assertTrue(drug["source_status"])
             self.assertTrue(drug["label_risk_context"])
-            self.assertIn("structure_svg", drug)
+            self.assertTrue(drug.get("structure_svg") or drug.get("structure_image_url"))
 
     def test_known_context_returns_similarity_without_decision_blocking(self) -> None:
         context = known_context_for_smiles(

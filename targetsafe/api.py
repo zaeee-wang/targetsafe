@@ -24,7 +24,7 @@ class RunRequest(BaseModel):
     target: str = Field(default=DEFAULT_TARGET)
     seed_smiles: str = Field(default=DEFAULT_SEED)
     optimization_goal: str = Field(default=DEFAULT_GOAL)
-    candidate_count: int = Field(default=60, ge=20, le=120)
+    candidate_count: int = Field(default=160, ge=20, le=500)
     compute_profile: str = Field(default="cpu-demo")
     allow_network: bool = False
     use_llm: bool = False
