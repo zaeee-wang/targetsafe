@@ -1,4 +1,4 @@
-import type { KnownContext, PipelineResult, ReferenceDrug, RunRequest } from "./types";
+import type { KnownContext, PipelineResult, ReferenceDrug, RunRequest, StructureDepiction } from "./types";
 
 const API_BASE = import.meta.env.VITE_TARGETSAFE_API ?? "";
 
@@ -35,6 +35,14 @@ export async function fetchKnownContext(runId: string, candidateId: string): Pro
   const response = await fetch(`${API_BASE}/api/runs/${runId}/candidates/${candidateId}/known-context`);
   if (!response.ok) {
     throw new Error("Unable to load candidate known-drug context.");
+  }
+  return response.json();
+}
+
+export async function fetchDepiction(smiles: string): Promise<StructureDepiction> {
+  const response = await fetch(`${API_BASE}/api/depict?smiles=${encodeURIComponent(smiles)}`);
+  if (!response.ok) {
+    throw new Error("Unable to depict molecule.");
   }
   return response.json();
 }

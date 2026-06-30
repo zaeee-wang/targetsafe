@@ -552,6 +552,11 @@ def _heuristic_valid_smiles(smiles: str) -> bool:
         return False
     if smiles.count("(") != smiles.count(")"):
         return False
+    if smiles.count("[") != smiles.count("]"):
+        return False
+    for digit in "123456789":
+        if smiles.count(digit) % 2:
+            return False
     if not any(ch in smiles for ch in ["C", "c", "N", "n", "O", "o", "S", "s"]):
         return False
     return True

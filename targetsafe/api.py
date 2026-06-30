@@ -3,11 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+from targetsafe.chem import evaluate_smiles, mol_svg_data_uri
 from targetsafe.compute_profiles import profile_options
 from targetsafe.pipeline import PipelineConfig, run_pipeline
 from targetsafe.reference_drugs import known_context_for_smiles, reference_drug, reference_drugs
@@ -69,6 +70,21 @@ def get_reference_drug(drug_id: str) -> dict[str, Any]:
     if drug is None:
         raise HTTPException(status_code=404, detail="Reference drug not found.")
     return drug
+
+
+@app.get("/api/depict")
+def depict_smiles(smiles: str = Query(..., min_length=1, max_length=1200)) -> dict[str, Any]:
+    descriptor = evaluate_smiles(smiles)
+    return {
+        "valid": descriptor.valid,
+        "canonical_smiles": descriptor.canonical_smiles,
+        "structure_svg": mol_svg_data_uri(smiles) if descriptor.valid else None,
+        "method": descriptor.method,
+        "molecular_weight": descriptor.molecular_weight,
+        "qed": descriptor.qed,
+        "sa_score": descriptor.sa_score,
+        "alerts": descriptor.alerts,
+    }
 
 
 @app.post("/api/runs")

@@ -2,10 +2,12 @@
 
 ## Design Direction
 
-The UI has been redesigned as a dark molecular research atlas, not a landing page. The visual language uses:
+The UI has been redesigned as an Apple-inspired molecular research atlas, not a landing page. The visual language uses:
 
 - Pretendard typography,
-- black laboratory-stage surfaces,
+- dark/light display modes,
+- Apple-like white/parchment and near-black surface hierarchy,
+- a single blue action color for interactive controls,
 - large molecule figures,
 - thin evidence rails,
 - separated work sections,
@@ -20,6 +22,8 @@ Target-SAFE now uses six sections.
 
 1. `Run Console`
    - Configure disease, target, seed SMILES, candidate count, compute profile, API/GPU/LLM toggles.
+   - Switch between Korean/English and dark/light mode.
+   - Open the seed molecule drawer to choose a known drug or control molecule instead of typing SMILES manually.
    - Run the stable CPU demo or the selected profile.
    - Compare compute profiles side by side, so CPU demo, GPU accelerated, API assisted, and full research modes are visibly different.
    - Review the target expansion map: EGFR is the scored pilot, while ALK/BRAF/KRAS/HER2 are expansion lanes that need target-specific evidence before scoring.
@@ -28,6 +32,16 @@ Target-SAFE now uses six sections.
    - Shows up to 96 generated candidates and controls as large molecule figures.
    - Shows known EGFR reference drugs and broader public drug atlas entries.
    - Uses improved fallback bond-line drawings when RDKit is unavailable.
+
+### Seed Molecule Drawer
+
+The drawer is designed for fast demo and stress testing.
+
+- EGFR reference seeds come from the reference-drug layer when SMILES are available.
+- General drug-like controls include familiar small molecules such as aspirin, caffeine, acetaminophen, ibuprofen, and metformin.
+- Negative/stress controls include deliberately weak or invalid examples so users can test failure paths.
+- Each drawer card requests a 2D depiction through `/api/depict`, so users can see the structure before applying it.
+- Non-EGFR seeds are labeled as chemistry/UX tests, not target-specific scoring validation.
 
 3. `Candidate Twin`
    - Shows the selected candidate as a molecular evidence twin.
@@ -55,6 +69,7 @@ The previous UI placed run setup, candidates, twin, graph, trace, and model card
 The new UI separates actions by research intent:
 
 - run first,
+- select or type a seed molecule,
 - inspect structures,
 - inspect one candidate deeply,
 - inspect evidence graph,

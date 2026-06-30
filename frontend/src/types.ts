@@ -183,3 +183,14 @@ export interface KnownContext {
   interpretation: string;
   nearest_known_drugs: KnownContextDrug[];
 }
+
+export interface StructureDepiction {
+  valid: boolean;
+  canonical_smiles: string;
+  structure_svg: string | null;
+  method: string;
+  molecular_weight: number;
+  qed: number;
+  sa_score: number;
+  alerts: string[];
+}

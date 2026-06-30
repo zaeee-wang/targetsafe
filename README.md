@@ -9,9 +9,11 @@ The project does **not** claim that AI invented a drug. It demonstrates how an a
 The earlier MVP was useful but too close to a rule-based table. This version adds:
 
 - React + TypeScript molecular digital twin UI.
-- Dark Pretendard-based research atlas UI with separated app sections.
+- Apple-inspired dark/light research atlas UI with separated app sections.
+- Korean/English language switch and dark/light display switch.
 - FastAPI backend.
 - CPU/GPU/API compute profile selector.
+- Seed molecule drawer for choosing known drugs and control molecules without hand-typing SMILES.
 - RDKit 2D structure depiction and interactive computed conformer view.
 - Improved fallback 2D bond-line depiction when RDKit is unavailable.
 - Known EGFR drug reference library plus a broader public drug atlas.
@@ -46,6 +48,7 @@ The frontend runs at `http://127.0.0.1:5173` and proxies `/api` to the FastAPI b
 Main UI sections:
 
 - `Run Console`: configure and start a triage run.
+- `Seed Molecule Drawer`: choose EGFR reference seeds, general drug-like controls, or negative/stress controls with structure previews.
 - `Molecule Atlas`: inspect up to 96 candidate previews and public/reference-drug structures.
 - `Candidate Twin`: inspect one candidate in 2D/3D with decision rationale and XYZ export.
 - `Evidence Graph`: zoom and pan through scoped graph-grounded evidence.
