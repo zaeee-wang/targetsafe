@@ -142,13 +142,7 @@ def _atom_color(atom: str) -> str:
 
 def mol_conformer_payload(smiles: str) -> dict[str, object] | None:
     if not RDKIT_AVAILABLE:
-        return {
-            "available": False,
-            "label": "computed conformer unavailable",
-            "message": "RDKit is unavailable; 3D view is disabled for this run.",
-            "atoms": [],
-            "bonds": [],
-        }
+        return _fallback_conformer_payload(smiles)
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return None
@@ -196,6 +190,48 @@ def mol_conformer_payload(smiles: str) -> dict[str, object] | None:
             "atoms": [],
             "bonds": [],
         }
+
+
+def _fallback_conformer_payload(smiles: str) -> dict[str, object] | None:
+    if not _heuristic_valid_smiles(smiles):
+        return None
+    atoms = re.findall(r"Cl|Br|[BCNOFPSI]|[bcnops]", smiles)
+    atoms = [atom.capitalize() for atom in atoms if atom.strip()][:34]
+    if not atoms:
+        return {
+            "available": False,
+            "label": "computed 3D layout unavailable",
+            "message": "No displayable atoms were detected in the SMILES fallback parser.",
+            "atoms": [],
+            "bonds": [],
+        }
+    coords = []
+    for idx, atom in enumerate(atoms):
+        angle = idx * 0.72
+        radius = 1.4 + 0.08 * (idx % 5)
+        coords.append(
+            {
+                "index": idx,
+                "element": atom,
+                "x": round(math.cos(angle) * radius + idx * 0.18, 3),
+                "y": round(math.sin(angle) * radius, 3),
+                "z": round((idx % 7 - 3) * 0.32, 3),
+            }
+        )
+    bonds = [
+        {"begin": idx, "end": idx + 1, "order": 1.0}
+        for idx in range(max(0, len(coords) - 1))
+    ]
+    return {
+        "available": True,
+        "label": "computed 3D layout",
+        "message": (
+            "Fallback spatial layout from SMILES atoms for UI inspection only; install RDKit "
+            "for ETKDG/UFF conformers and do not interpret this as a binding pose."
+        ),
+        "atoms": coords,
+        "bonds": bonds,
+    }
 
 
 def tanimoto_like_similarity(a: str, b: str) -> float:

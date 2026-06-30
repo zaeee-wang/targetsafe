@@ -69,13 +69,20 @@ export default function App() {
     return seed;
   }, [result]);
 
-  async function runTriage() {
+  async function runTriage(profileOverride?: string) {
+    const nextRequest = profileOverride ? { ...request, compute_profile: profileOverride } : request;
+    if (profileOverride && request.compute_profile !== profileOverride) {
+      setRequest(nextRequest);
+    }
     setLoading(true);
     setError("");
     try {
-      const payload = await createRun(request);
+      const payload = await createRun(nextRequest);
       setResult(payload);
       setSelectedId(payload.candidates[0]?.candidate_id ?? "");
+      window.setTimeout(() => {
+        document.querySelector(".twin-layout")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 80);
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : "Target-SAFE run failed.");
     } finally {
@@ -105,10 +112,33 @@ export default function App() {
               </option>
             ))}
           </select>
-          <button className="primary-action" onClick={runTriage} disabled={loading}>
+          <button className="primary-action" onClick={() => runTriage()} disabled={loading}>
             {loading ? <Loader2 className="spin" size={17} /> : <Play size={17} />}
             Run triage
           </button>
+        </div>
+      </section>
+
+      <section className="hero-guide" aria-label="How to use Target-SAFE">
+        <div className="hero-copy">
+          <p className="eyebrow">Evidence-gated lead triage</p>
+          <h2>Pick a compute profile, run triage, inspect the molecular twin.</h2>
+          <p>
+            Start with CPU demo for a stable walkthrough. The system generates EGFR lead candidates,
+            checks descriptor risks, estimates target fit, and explains each Go/Hold/No-Go decision.
+          </p>
+          <div className="hero-actions">
+            <button className="primary-action hero-run" onClick={() => runTriage("cpu-demo")} disabled={loading}>
+              {loading ? <Loader2 className="spin" size={17} /> : <Play size={17} />}
+              Run CPU demo
+            </button>
+            <span>Then click a molecule card to review structure, 3D layout, evidence, and next validation.</span>
+          </div>
+        </div>
+        <div className="guide-steps" aria-label="Workflow">
+          <div><strong>1</strong><span>Select profile</span><small>CPU, GPU, API, or full research mode</small></div>
+          <div><strong>2</strong><span>Run triage</span><small>Generate candidates and evidence graph</small></div>
+          <div><strong>3</strong><span>Inspect twin</span><small>2D structure, 3D model, risk, and rationale</small></div>
         </div>
       </section>
 
@@ -170,7 +200,7 @@ export default function App() {
       </section>
 
       <section className="twin-layout">
-        <CandidateBoard result={result} selectedId={selected?.candidate_id ?? ""} onSelect={setSelectedId} />
+        <MoleculeCatalog result={result} selectedId={selected?.candidate_id ?? ""} onSelect={setSelectedId} />
         <CandidateTwin candidate={selected} graph={result?.evidence_graph ?? null} />
       </section>
 
@@ -202,37 +232,48 @@ function Metric({ icon, label, value }: { icon: ReactNode; label: string; value:
   );
 }
 
-function CandidateBoard({ result, selectedId, onSelect }: { result: PipelineResult | null; selectedId: string; onSelect: (id: string) => void }) {
+function MoleculeCatalog({ result, selectedId, onSelect }: { result: PipelineResult | null; selectedId: string; onSelect: (id: string) => void }) {
   const candidates = result?.candidates ?? [];
   return (
-    <section className="candidate-board" aria-label="Candidate board">
+    <section className="candidate-board" aria-label="Molecule catalog">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Candidate board</p>
-          <h2>Go / Hold / No-Go triage</h2>
+          <p className="eyebrow">Molecule catalog</p>
+          <h2>Candidate structures</h2>
         </div>
         <span>{candidates.length || 0} molecules</span>
       </div>
-      <div className="board-columns">
-        {STATUS_ORDER.map((status) => (
-          <div className="board-column" key={status}>
-            <header className={statusClass(status)}>{status}</header>
-            {candidates
-              .filter((candidate) => (candidate.decision?.final_status ?? "Unscored") === status)
-              .slice(0, 12)
-              .map((candidate) => (
-                <button
-                  className={`candidate-row ${selectedId === candidate.candidate_id ? "selected" : ""}`}
-                  onClick={() => onSelect(candidate.candidate_id)}
-                  key={candidate.candidate_id}
-                >
-                  <span>{candidate.candidate_id}</span>
-                  <strong>{formatNumber(candidate.prediction_interval?.lower, 2)}</strong>
-                  <small>AD {formatNumber(candidate.applicability_score, 2)}</small>
-                </button>
-              ))}
-          </div>
-        ))}
+      {candidates.length === 0 ? (
+        <div className="catalog-empty">
+          <Network size={26} />
+          <strong>No run yet</strong>
+          <span>Use Run triage to populate known references, generated analogs, and controls.</span>
+        </div>
+      ) : (
+        <div className="molecule-grid">
+          {candidates.slice(0, 18).map((candidate) => (
+            <button
+              className={`molecule-card ${selectedId === candidate.candidate_id ? "selected" : ""}`}
+              onClick={() => onSelect(candidate.candidate_id)}
+              key={candidate.candidate_id}
+            >
+              <span className={`mini-status ${statusClass(candidate.decision?.final_status ?? "Unscored")}`}>
+                {candidate.decision?.final_status ?? "Unscored"}
+              </span>
+              <span className="molecule-thumb">
+                {candidate.structure_svg ? <img src={candidate.structure_svg} alt="" /> : <i>No structure</i>}
+              </span>
+              <strong>{candidate.candidate_id}</strong>
+              <small>lower pChEMBL {formatNumber(candidate.prediction_interval?.lower, 2)}</small>
+              <small>AD {formatNumber(candidate.applicability_score, 2)} · {candidate.source.replaceAll("_", " ")}</small>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="catalog-legend">
+        <span className="status-go">Go</span>
+        <span className="status-hold">Hold</span>
+        <span className="status-nogo">No-Go</span>
       </div>
     </section>
   );
@@ -263,8 +304,13 @@ function CandidateTwin({ candidate, graph }: { candidate: Candidate | null; grap
       </div>
       <div className="twin-grid">
         <div className="molecule-panel">
+          <div className="panel-kicker">Molecular Identity</div>
           <div className="molecule-stage">
             {candidate.structure_svg ? <img src={candidate.structure_svg} alt={`${candidate.candidate_id} 2D structure`} /> : <span>No 2D depiction</span>}
+          </div>
+          <div className="structure-caption">
+            <strong>2D structure</strong>
+            <span>{desc?.method === "rdkit" ? "RDKit depiction" : "SMILES schematic fallback"}</span>
           </div>
           <ConformerView conformer={candidate.conformer} />
         </div>
@@ -317,7 +363,12 @@ function ConformerView({ conformer }: { conformer: ConformerPayload | null }) {
   const atoms = (conformer?.atoms ?? []).slice(0, 34);
   const bonds = (conformer?.bonds ?? []).slice(0, 42);
   if (!conformer?.available || atoms.length === 0) {
-    return <div className="conformer-view unavailable">{conformer?.message ?? "Computed conformer unavailable."}</div>;
+    return (
+      <div className="conformer-view unavailable">
+        <div className="conformer-label">3D model</div>
+        {conformer?.message ?? "Computed conformer unavailable."}
+      </div>
+    );
   }
   const xs = atoms.map((atom) => atom.x);
   const ys = atoms.map((atom) => atom.y);
@@ -333,7 +384,7 @@ function ConformerView({ conformer }: { conformer: ConformerPayload | null }) {
   };
   return (
     <div className="conformer-view">
-      <div className="conformer-label">{conformer.label}</div>
+      <div className="conformer-label">3D model · {conformer.label}</div>
       <svg viewBox="0 0 260 160" role="img" aria-label="Computed conformer">
         {bonds.map((bond, index) => {
           const a = project(bond.begin);
