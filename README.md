@@ -77,6 +77,9 @@ Generated outputs are written to `outputs/`:
 User-facing guide:
 
 - `outputs/TARGET_SAFE_IMPLEMENTATION_GUIDE.md`
+- Korean problem statement: `outputs/TARGET_SAFE_PROBLEM_STATEMENT_KO.md`
+- UI walkthrough: `outputs/TARGET_SAFE_UI_WALKTHROUGH.md`
+- Compute profile guide: `outputs/TARGET_SAFE_COMPUTE_PROFILES.md`
 
 ## API
 
