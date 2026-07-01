@@ -4,8 +4,12 @@ import unittest
 import uuid
 from pathlib import Path
 
+from fastapi import HTTPException
+
+from targetsafe.api import MoleculeCheckRequest, _RUNS, check_molecule, get_cache_stats, get_candidates, get_performance_debug, get_run_status
+from targetsafe.cache import SQLiteCache
 from targetsafe.chem import evaluate_smiles, generate_seed_analogs
-from targetsafe.data_sources import _categorize_fetch_error
+from targetsafe.data_sources import PublicDataSources, _categorize_fetch_error
 from targetsafe.decision import decide_candidate
 from targetsafe.embeddings import gpu_diagnostics
 from targetsafe.models import CandidateRecord, EvidenceBundle
@@ -13,10 +17,80 @@ from targetsafe.pipeline import PipelineConfig, run_pipeline
 from targetsafe.qsar import EvidenceWeightedQSAR
 from targetsafe.reference_drugs import known_context_for_smiles, reference_drugs
 from targetsafe.runtime import llm_provider_options, runtime_status
+from targetsafe.scientific_extensions import build_activity_cliff_report, build_target_readiness
+from targetsafe.target_profiles import resolve_target_profile, target_scenario_examples
 from targetsafe.validation import build_qsar_validation_report
 
 
 class TargetSafePipelineTests(unittest.TestCase):
+    def test_cache_stats_stale_and_negative_entries_are_reported(self) -> None:
+        root = Path("work") / "test_runs" / uuid.uuid4().hex
+        cache = SQLiteCache(root / "cache.sqlite")
+        cache.set("unit", {"q": "fresh"}, {"ok": True}, ttl_seconds=60)
+        cache.set("unit", {"q": "negative"}, {"error_code": "timeout"}, ttl_seconds=60, negative=True)
+        self.assertEqual(cache.get("unit", {"q": "fresh"}), {"ok": True})
+        self.assertEqual(cache.get_negative("unit", {"q": "negative"})["error_code"], "timeout")
+        stats = cache.stats()
+        self.assertEqual(stats["entries"], 2)
+        self.assertEqual(stats["negative_entries"], 1)
+        self.assertGreaterEqual(stats["runtime"]["hits"], 1)
+        self.assertGreaterEqual(stats["runtime"]["negative_hits"], 1)
+
+    def test_pubchem_batch_fallback_and_circuit_summary_do_not_crash(self) -> None:
+        root = Path("work") / "test_runs" / uuid.uuid4().hex
+        sources = PublicDataSources(cache=SQLiteCache(root / "cache.sqlite"), allow_network=False)
+        records = sources.get_pubchem_reference_records([
+            {"drug_id": "x", "name": "Example", "pubchem_cid": "123", "smiles": "CCO"}
+        ])
+        self.assertEqual(records[0]["source_status"], "fallback_reference")
+        self.assertIn("schema", sources.circuit_summary())
+
+    def test_api_operability_endpoints_respond(self) -> None:
+        self.assertEqual(get_cache_stats()["schema"], "targetsafe.cache_stats.v1")
+        self.assertEqual(get_performance_debug()["schema"], "targetsafe.performance_debug.v1")
+        with self.assertRaises(HTTPException):
+            get_run_status("not_real")
+
+    def test_candidate_listing_supports_query_search(self) -> None:
+        run_id = f"unit_{uuid.uuid4().hex}"
+        _RUNS[run_id] = {
+            "candidates": [
+                {
+                    "candidate_id": "C001",
+                    "smiles": "CCO",
+                    "source_name": "ethanol reference",
+                    "library_source": "uploaded",
+                    "decision": {"final_status": "Hold", "reasons": ["Needs assay evidence."]},
+                    "descriptors": {"alerts": []},
+                },
+                {
+                    "candidate_id": "C002",
+                    "smiles": "COc1cc2ncnc(N)c2cc1",
+                    "source_name": "EGFR analog",
+                    "library_source": "chembl_target",
+                    "decision": {"final_status": "Go", "reasons": ["Passed evidence gates."]},
+                    "descriptors": {"alerts": []},
+                },
+            ]
+        }
+        try:
+            page = get_candidates(run_id, q="EGFR", limit=10, offset=0, status="all", source="all", sort="rank")
+            self.assertEqual(page["total"], 1)
+            self.assertEqual(page["items"][0]["candidate_id"], "C002")
+            by_reason = get_candidates(run_id, q="assay evidence", limit=10, offset=0, status="all", source="all", sort="rank")
+            self.assertEqual(by_reason["items"][0]["candidate_id"], "C001")
+        finally:
+            _RUNS.pop(run_id, None)
+
+    def test_molecule_check_reports_seed_viability(self) -> None:
+        valid = check_molecule(MoleculeCheckRequest(smiles="CCO", name="ethanol", target="EGFR"))
+        self.assertTrue(valid["valid"])
+        self.assertIn(valid["viability"], {"plausible_seed", "review"})
+        self.assertTrue(valid["structure_svg"])
+        invalid = check_molecule(MoleculeCheckRequest(smiles="C1CC", name="bad", target="EGFR"))
+        self.assertFalse(invalid["valid"])
+        self.assertEqual(invalid["viability"], "invalid")
+
     def test_pipeline_runs_offline_and_scores_candidates(self) -> None:
         root = Path("work") / "test_runs" / uuid.uuid4().hex
         result = run_pipeline(
@@ -58,6 +132,25 @@ class TargetSafePipelineTests(unittest.TestCase):
         statuses = {c.decision.final_status for c in result.candidates if c.decision}
         self.assertTrue({"Go", "Hold", "No-Go"} & statuses)
         self.assertFalse(any(c.parent_candidate_id == "CTRL_NEG_INVALID" for c in result.candidates))
+        self.assertIn("assay_plan", result.to_public_dict())
+        self.assertIn("activity_cliff_report", result.to_public_dict())
+        self.assertIn("target_readiness", result.to_public_dict())
+        self.assertIn("error_summary", result.to_public_dict())
+        self.assertIn("agent_trace_summary", result.to_public_dict())
+        self.assertTrue(result.log_path)
+        self.assertGreaterEqual(result.assay_plan["recommendation_count"], 1)
+        self.assertTrue(result.agent_trace_summary["flow_nodes"])
+        self.assertTrue(result.agent_trace_summary["flow_edges"])
+        self.assertIn("decision_impact", result.agent_trace_summary)
+        self.assertGreaterEqual(result.agent_trace_summary["critic_findings_count"], 1)
+        self.assertTrue(all(c.candidate_decision_flow for c in result.candidates if c.decision))
+        self.assertTrue(
+            any(
+                node["id"] == "final_decision" and c.decision and c.decision.final_status in str(node["summary"])
+                for c in result.candidates
+                for node in c.candidate_decision_flow
+            )
+        )
 
     def test_invalid_smiles_is_no_go(self) -> None:
         candidate = CandidateRecord(candidate_id="X", smiles="not-a-smiles", source="test")
@@ -139,6 +232,56 @@ class TargetSafePipelineTests(unittest.TestCase):
         refused = OSError("[WinError 10061] connection refused")
         self.assertEqual(_categorize_fetch_error(refused), "network_refused")
         self.assertEqual(_categorize_fetch_error(TimeoutError("timed out")), "timeout")
+
+    def test_target_scenario_library_includes_multiple_modes(self) -> None:
+        examples = target_scenario_examples({"compute_profile": "full-research"})
+        targets = {example["request"]["target"] for example in examples}
+        modes = {example["scoring_mode"] for example in examples}
+        self.assertTrue({"EGFR", "ALK", "BRAF", "KRAS", "HER2"} <= targets)
+        self.assertIn("scored_pilot", modes)
+        self.assertIn("evidence_only", modes)
+
+    def test_non_egfr_readiness_is_evidence_only(self) -> None:
+        profile = resolve_target_profile("ALK")
+        evidence = EvidenceBundle(target="ALK", disease="ALK-positive NSCLC")
+        readiness = build_target_readiness(evidence, profile)
+        self.assertEqual(readiness["scoring_mode"], "evidence_only")
+        self.assertTrue(readiness["validation_required"])
+        self.assertIn("target_specific_qsar_not_validated", readiness["blockers"])
+
+    def test_non_egfr_run_suppresses_confident_go(self) -> None:
+        root = Path("work") / "test_runs" / uuid.uuid4().hex
+        profile = resolve_target_profile("ALK")
+        result = run_pipeline(
+            PipelineConfig(
+                disease=profile["disease"],
+                target=profile["target"],
+                seed_smiles=profile["seed_smiles"],
+                compute_profile="cpu-demo",
+                allow_network=False,
+                use_gpu=False,
+                use_llm=False,
+                library_sources=["seed_analog"],
+                library_limit=80,
+                detailed_eval_limit=35,
+                display_limit=12,
+                conformer_limit=0,
+                output_dir=root,
+                cache_path=root / "cache.sqlite",
+            )
+        )
+        self.assertEqual(result.scoring_mode, "evidence_only")
+        self.assertNotIn("Go", {c.decision.final_status for c in result.candidates if c.decision})
+
+    def test_activity_cliff_report_flags_synthetic_pair(self) -> None:
+        left = CandidateRecord(candidate_id="A", smiles="CCOc1ccccc1", source="test")
+        right = CandidateRecord(candidate_id="B", smiles="CCOc1ccccc1C", source="test")
+        for candidate, activity in ((left, 8.0), (right, 6.5)):
+            candidate.descriptors = evaluate_smiles(candidate.smiles)
+            candidate.predicted_activity = activity
+        report = build_activity_cliff_report([left, right])
+        self.assertGreaterEqual(report["pair_count"], 1)
+        self.assertTrue(left.activity_cliff_flags or right.activity_cliff_flags)
 
     def test_uploaded_library_rows_are_staged_and_reported(self) -> None:
         root = Path("work") / "test_runs" / uuid.uuid4().hex

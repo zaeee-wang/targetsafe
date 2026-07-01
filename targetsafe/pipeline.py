@@ -16,11 +16,15 @@ from targetsafe.evidence_graph import build_evidence_graph
 from targetsafe.library import DEFAULT_LIBRARY_SOURCES, build_candidate_library, select_detailed_candidates
 from targetsafe.model_card import write_ablation_report, write_evidence_graph, write_model_card
 from targetsafe.models import AgentEvent, CandidateRecord, PipelineResult, ToolCallLog
+from targetsafe.observability import RunLogger, classify_error, summarize_errors
 from targetsafe.qsar import EvidenceWeightedQSAR
 from targetsafe.redesign import run_redesign_iteration
 from targetsafe.report import write_html_report
 from targetsafe.runtime import runtime_status
+from targetsafe.scientific_extensions import build_scientific_extensions
+from targetsafe.target_profiles import resolve_target_profile
 from targetsafe.thresholds import ThresholdRegistry
+from targetsafe.trace_summary import attach_candidate_decision_flows, build_agent_trace_summary
 from targetsafe.validation import build_qsar_validation_report, write_validation_outputs
 
 
@@ -53,9 +57,23 @@ class PipelineConfig:
 
 
 def run_pipeline(config: PipelineConfig) -> PipelineResult:
-    run_id = f"targetsafe_{int(time.time())}"
+    started_perf = time.perf_counter()
+    run_id = f"targetsafe_{int(time.time() * 1000)}"
+    logger = RunLogger(run_id)
+    logger.log(
+        "run_started",
+        disease=config.disease,
+        target=config.target,
+        compute_profile=config.compute_profile,
+        library_sources=config.library_sources,
+        use_gpu=config.use_gpu,
+        use_llm=config.use_llm,
+    )
     agent_events: list[AgentEvent] = []
+    error_events: list[dict[str, object]] = []
     step = 1
+    target_profile = resolve_target_profile(config.target)
+    scoring_mode = str(target_profile.get("scoring_mode", "evidence_only"))
     profile = resolve_profile(config.compute_profile)
     allow_network = profile.allow_network or config.allow_network
     use_llm = profile.use_llm or config.use_llm
@@ -70,12 +88,24 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
     )
     thresholds = ThresholdRegistry()
     cache = SQLiteCache(config.cache_path)
+    if use_llm and not runtime_payload.get("llm", {}).get("configured"):
+        error = classify_error(
+            "llm_key_missing",
+            "LLM",
+            "LLM requested but no provider key was supplied or configured.",
+            run_id=run_id,
+            fallback_used=True,
+        )
+        error_events.append(error.to_dict())
+        logger.log_error(error)
+        logger.log("fallback_selected", source="LLM", reason="llm_key_missing")
     llm = LLMClient(
         enabled=use_llm,
         api_key=config.llm_api_key,
         provider=config.llm_provider,
         base_url=config.llm_base_url or None,
         model=config.llm_model or None,
+        logger=logger,
     )
     planner = PlannerAgent(llm)
     plan = planner.plan(config.disease, config.target, config.optimization_goal)
@@ -91,7 +121,7 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
     )
     step += 1
 
-    sources = PublicDataSources(cache=cache, allow_network=allow_network)
+    sources = PublicDataSources(cache=cache, allow_network=allow_network, logger=logger)
     evidence_agent = EvidenceAgent(sources)
     evidence = evidence_agent.collect(config.disease, config.target)
     evidence_mode = _summarize_evidence_mode(sources.logs)
@@ -173,6 +203,17 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
     )
     step += 1
     gpu_payload = enrich_with_molecular_embeddings(candidates, evidence, use_gpu=use_gpu)
+    if use_gpu and not gpu_payload.get("used"):
+        error = classify_error(
+            "gpu_unavailable",
+            "GPU",
+            str(gpu_payload.get("fallback_reason") or gpu_payload.get("message") or "GPU lane did not run."),
+            run_id=run_id,
+            fallback_used=True,
+        )
+        error_events.append(error.to_dict())
+        logger.log_error(error)
+        logger.log("fallback_selected", source="GPU", reason=error.error_code)
     agent_events.append(
         AgentEvent(
             step=step,
@@ -185,8 +226,26 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
     )
     step += 1
     for candidate in candidates:
+        if candidate.descriptors and not candidate.descriptors.valid:
+            error = classify_error(
+                "invalid_smiles",
+                "Chemistry",
+                f"{candidate.candidate_id}: {candidate.smiles}",
+                run_id=run_id,
+                fallback_used=False,
+            )
+            candidate.candidate_errors.append(error.to_dict())
+            error_events.append(error.to_dict())
+            logger.log("candidate_failed", candidate_id=candidate.candidate_id, error=error.to_dict())
         candidate.decision = decide_candidate(candidate, thresholds)
         candidate.decision = critic.review(candidate)
+        logger.log(
+            "decision_made",
+            candidate_id=candidate.candidate_id,
+            status=candidate.decision.final_status,
+            hard_gate_failures=candidate.decision.hard_gate_failures,
+            uncertainty=candidate.decision.uncertainty,
+        )
     critic_findings = sum(len(c.decision.critic_findings) for c in candidates if c.decision)
     agent_events.append(
         AgentEvent(
@@ -237,6 +296,33 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
             )
         )
         step += 1
+
+    assay_plan, activity_cliff_report, target_readiness, scientific_extensions = build_scientific_extensions(
+        candidates,
+        evidence,
+        target_profile,
+    )
+    logger.log(
+        "assay_plan_created",
+        recommendation_count=assay_plan.get("recommendation_count", 0),
+        target_readiness_status=target_readiness.get("status"),
+        activity_cliff_status=activity_cliff_report.get("status"),
+    )
+    agent_events.append(
+        AgentEvent(
+            step=step,
+            phase="Replan",
+            agent="Scientific Extension Agent",
+            action="plan_assays_detect_activity_cliffs_and_check_target_readiness",
+            status=str(target_readiness.get("status", "unknown")),
+            detail={
+                "assay_recommendations": assay_plan.get("recommendation_count", 0),
+                "activity_cliff_pairs": activity_cliff_report.get("pair_count", 0),
+                "scoring_mode": scoring_mode,
+            },
+        )
+    )
+    step += 1
 
     ranked = rank_candidates(candidates)
     _materialize_display_assets(
@@ -290,6 +376,33 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
             detail=evidence_graph.get("summary", {}),
         )
     )
+    if llm.last_error:
+        error = classify_error(
+            "llm_provider_error",
+            "LLM",
+            llm.last_error,
+            run_id=run_id,
+            fallback_used=True,
+        )
+        error_events.append(error.to_dict())
+    performance_summary = {
+        "schema": "targetsafe.performance_summary.v1",
+        "duration_ms": round((time.perf_counter() - started_perf) * 1000, 2),
+        "candidate_count": len(ranked),
+        "tool_call_count": len(sources.logs),
+        "compute_profile": profile.id,
+        "scoring_mode": scoring_mode,
+    }
+    attach_candidate_decision_flows(ranked)
+    agent_trace_summary = build_agent_trace_summary(
+        agent_events=agent_events,
+        tool_logs=sources.logs,
+        candidates=ranked,
+        evidence_mode=evidence_mode,
+        redesign_report=redesign_report,
+        validation_report=validation_report,
+        performance_summary=performance_summary,
+    )
     result = PipelineResult(
         run_id=run_id,
         plan=plan,
@@ -325,6 +438,18 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
         input_example_id=config.input_example_id,
         library_report=library_report,
         screening_stages=screening_stages,
+        target_profile=target_profile,
+        scoring_mode=scoring_mode,
+        assay_plan=assay_plan,
+        activity_cliff_report=activity_cliff_report,
+        target_readiness=target_readiness,
+        scientific_extensions=scientific_extensions,
+        error_summary=summarize_errors(error_events, sources.logs),
+        log_path=str(logger.path),
+        performance_summary=performance_summary,
+        cache_summary=cache.stats(),
+        api_circuit_breaker_summary=sources.circuit_summary(),
+        agent_trace_summary=agent_trace_summary,
     )
     result.evaluation_report = _build_evaluation_report(ranked)
     result.ablation_report_path = write_ablation_report(_build_ablation_summary(result), config.output_dir)
@@ -333,6 +458,12 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
     write_evidence_graph(evidence_graph, config.output_dir)
     result.report_path = write_html_report(result, config.output_dir)
     _write_json_result(result, config.output_dir)
+    logger.log(
+        "run_finished",
+        status_counts=result.evaluation_report.get("status_counts", {}),
+        report_path=result.report_path,
+        error_summary=result.error_summary,
+    )
     return result
 
 

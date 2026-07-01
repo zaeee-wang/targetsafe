@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from pathlib import Path
 from typing import Any
 
@@ -8,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+from targetsafe.cache import SQLiteCache
 from targetsafe.chem import evaluate_smiles, mol_conformer_payload, mol_svg_data_uri
 from targetsafe.compute_profiles import profile_options
 from targetsafe.agents import LLMClient
@@ -17,6 +20,8 @@ from targetsafe.library import DEFAULT_LIBRARY_SOURCES, parse_uploaded_smiles_te
 from targetsafe.pipeline import PipelineConfig, run_pipeline
 from targetsafe.reference_drugs import known_context_for_smiles, reference_drug, reference_drugs
 from targetsafe.runtime import default_model_for_provider, llm_provider_options, runtime_status
+from targetsafe.target_profiles import target_profiles, target_scenario_examples
+from targetsafe.observability import read_jsonl
 
 
 DEFAULT_DISEASE = "EGFR mutation-positive NSCLC"
@@ -65,6 +70,12 @@ class LLMTestRequest(BaseModel):
     llm_custom_model: str = Field(default="", max_length=160)
 
 
+class MoleculeCheckRequest(BaseModel):
+    smiles: str = Field(default="", min_length=1, max_length=2000)
+    name: str = Field(default="", max_length=160)
+    target: str = Field(default=DEFAULT_TARGET, max_length=80)
+
+
 app = FastAPI(
     title="Target-SAFE API",
     version="0.2.0",
@@ -80,6 +91,9 @@ app.add_middleware(
 
 _RUNS: dict[str, dict[str, Any]] = {}
 _UPLOADED_LIBRARIES: dict[str, dict[str, Any]] = {}
+_RUN_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="targetsafe-run")
+_RUN_STATUSES: dict[str, dict[str, Any]] = {}
+_RECENT_PERFORMANCE: list[dict[str, Any]] = []
 
 
 @app.get("/api/health")
@@ -102,6 +116,25 @@ def get_gpu_diagnostics() -> dict[str, Any]:
     return gpu_diagnostics()
 
 
+@app.get("/api/cache/stats")
+def get_cache_stats() -> dict[str, Any]:
+    return SQLiteCache().stats()
+
+
+@app.get("/api/debug/performance")
+def get_performance_debug() -> dict[str, Any]:
+    active = [item for item in _RUN_STATUSES.values() if item.get("state") in {"queued", "running"}]
+    return {
+        "schema": "targetsafe.performance_debug.v1",
+        "executor": {
+            "max_workers": 2,
+            "active_or_queued": len(active),
+        },
+        "recent_runs": _RECENT_PERFORMANCE[-12:],
+        "cache": SQLiteCache().stats(),
+    }
+
+
 @app.get("/api/llm/providers")
 def get_llm_providers() -> list[dict[str, Any]]:
     return llm_provider_options()
@@ -120,6 +153,55 @@ def test_llm_connection(request: LLMTestRequest) -> dict[str, Any]:
     return client.test_connection()
 
 
+@app.post("/api/molecule/check")
+def check_molecule(request: MoleculeCheckRequest) -> dict[str, Any]:
+    smiles = request.smiles.strip()
+    if not smiles:
+        raise HTTPException(status_code=400, detail="SMILES is required.")
+    descriptors = evaluate_smiles(smiles)
+    structure_svg = mol_svg_data_uri(descriptors.canonical_smiles or smiles) if descriptors.valid else None
+    reasons: list[str] = []
+    suggestions: list[str] = []
+    if not descriptors.valid:
+        viability = "invalid"
+        reasons.append("Invalid SMILES; correct the structure before using it as a seed.")
+        suggestions.append("Check ring closures, branch parentheses, atom symbols, and charge notation.")
+    else:
+        severe_alerts = len(descriptors.severe_alerts)
+        alerts = len(descriptors.alerts)
+        if severe_alerts:
+            viability = "blocked"
+            reasons.append(f"{severe_alerts} severe structural alert(s) found.")
+            suggestions.append("Use this as a stress control or redesign away from the alerting motif.")
+        elif descriptors.lipinski_violations >= 2 or descriptors.molecular_weight > 650 or descriptors.logp > 6:
+            viability = "review"
+            reasons.append("Descriptor profile needs review before prioritization.")
+            suggestions.append("Reduce extreme size/lipophilicity or compare against a closer known analog.")
+        elif alerts:
+            viability = "review"
+            reasons.append(f"{alerts} structural alert(s) found; not a toxicity conclusion, but review is required.")
+            suggestions.append("Confirm whether the alert is acceptable for the target series.")
+        else:
+            viability = "plausible_seed"
+            reasons.append("Structure is valid and passes quick descriptor/alert sanity checks.")
+            suggestions.append("Use as seed for staged triage; target-specific activity still requires evidence.")
+    return {
+        "schema": "targetsafe.molecule_check.v1",
+        "name": request.name.strip(),
+        "target": request.target.strip() or DEFAULT_TARGET,
+        "input_smiles": smiles,
+        "canonical_smiles": descriptors.canonical_smiles,
+        "valid": descriptors.valid,
+        "viability": viability,
+        "can_use_as_seed": descriptors.valid and viability != "blocked",
+        "structure_svg": structure_svg,
+        "descriptors": descriptors.to_dict(),
+        "reasons": reasons,
+        "suggestions": suggestions,
+        "interpretation": "Quick design-bench check only; it does not establish potency, selectivity, safety, or synthesizability.",
+    }
+
+
 @app.get("/api/decision-rules")
 def get_decision_rules() -> dict[str, Any]:
     return decision_rulebook()
@@ -128,6 +210,11 @@ def get_decision_rules() -> dict[str, Any]:
 @app.get("/api/run-examples")
 def get_run_examples() -> list[dict[str, Any]]:
     return run_examples()
+
+
+@app.get("/api/target-profiles")
+def get_target_profiles() -> list[dict[str, Any]]:
+    return target_profiles()
 
 
 @app.get("/api/library/sources")
@@ -189,32 +276,31 @@ def create_run(request: RunRequest) -> dict[str, Any]:
     library_sources = list(request.library_sources)
     if uploaded_smiles and "uploaded" not in library_sources:
         library_sources.append("uploaded")
-    result = run_pipeline(
-        PipelineConfig(
-            disease=request.disease,
-            target=request.target,
-            seed_smiles=request.seed_smiles,
-            optimization_goal=request.optimization_goal,
-            candidate_count=request.candidate_count,
-            compute_profile=request.compute_profile,
-            allow_network=request.allow_network,
-            use_llm=request.use_llm,
-            use_gpu=request.use_gpu,
-            enable_conformers=request.enable_conformers,
-            library_sources=library_sources,
-            library_limit=request.library_limit,
-            detailed_eval_limit=request.detailed_eval_limit,
-            display_limit=request.display_limit,
-            conformer_limit=request.conformer_limit,
-            uploaded_smiles=uploaded_smiles,
-            llm_api_key=request.llm_api_key,
-            llm_provider=request.llm_provider,
-            llm_base_url=request.llm_base_url,
-            llm_model=_selected_llm_model(request.llm_provider, request.llm_model, request.llm_custom_model),
-            input_example_id=request.input_example_id,
-            output_dir=Path("outputs"),
-        )
+    config = PipelineConfig(
+        disease=request.disease,
+        target=request.target,
+        seed_smiles=request.seed_smiles,
+        optimization_goal=request.optimization_goal,
+        candidate_count=request.candidate_count,
+        compute_profile=request.compute_profile,
+        allow_network=request.allow_network,
+        use_llm=request.use_llm,
+        use_gpu=request.use_gpu,
+        enable_conformers=request.enable_conformers,
+        library_sources=library_sources,
+        library_limit=request.library_limit,
+        detailed_eval_limit=request.detailed_eval_limit,
+        display_limit=request.display_limit,
+        conformer_limit=request.conformer_limit,
+        uploaded_smiles=uploaded_smiles,
+        llm_api_key=request.llm_api_key,
+        llm_provider=request.llm_provider,
+        llm_base_url=request.llm_base_url,
+        llm_model=_selected_llm_model(request.llm_provider, request.llm_model, request.llm_custom_model),
+        input_example_id=request.input_example_id,
+        output_dir=Path("outputs"),
     )
+    result = _run_pipeline_managed(config)
     payload = result.to_public_dict()
     _RUNS[result.run_id] = payload
     return payload
@@ -225,6 +311,21 @@ def get_run(run_id: str) -> dict[str, Any]:
     payload = _RUNS.get(run_id)
     if payload is None:
         raise HTTPException(status_code=404, detail="Run not found in current API process.")
+    return payload
+
+
+@app.get("/api/runs/{run_id}/status")
+def get_run_status(run_id: str) -> dict[str, Any]:
+    payload = _RUN_STATUSES.get(run_id)
+    if payload is None and run_id in _RUNS:
+        payload = {
+            "run_id": run_id,
+            "state": "finished",
+            "message": "Run is available in the current API process.",
+            "performance_summary": _RUNS[run_id].get("performance_summary", {}),
+        }
+    if payload is None:
+        raise HTTPException(status_code=404, detail="Run status not found in current API process.")
     return payload
 
 
@@ -258,6 +359,41 @@ def get_library_report(run_id: str) -> dict[str, Any]:
     return payload.get("library_report", {})
 
 
+@app.get("/api/runs/{run_id}/assay-plan")
+def get_assay_plan(run_id: str) -> dict[str, Any]:
+    payload = get_run(run_id)
+    return payload.get("assay_plan", {})
+
+
+@app.get("/api/runs/{run_id}/activity-cliffs")
+def get_activity_cliffs(run_id: str) -> dict[str, Any]:
+    payload = get_run(run_id)
+    return payload.get("activity_cliff_report", {})
+
+
+@app.get("/api/runs/{run_id}/target-readiness")
+def get_target_readiness(run_id: str) -> dict[str, Any]:
+    payload = get_run(run_id)
+    return payload.get("target_readiness", {})
+
+
+@app.get("/api/runs/{run_id}/logs")
+def get_run_logs(run_id: str, level: str = Query(default=""), category: str = Query(default="")) -> list[dict[str, Any]]:
+    payload = get_run(run_id)
+    log_path = payload.get("log_path") or ""
+    return read_jsonl(log_path, level=level, category=category)
+
+
+@app.get("/api/debug/health")
+def debug_health() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "runtime_status": runtime_status(requested_gpu=True, requested_llm=True),
+        "run_count": len(_RUNS),
+        "uploaded_library_count": len(_UPLOADED_LIBRARIES),
+    }
+
+
 @app.get("/api/runs/{run_id}/candidates")
 def get_candidates(
     run_id: str,
@@ -266,6 +402,7 @@ def get_candidates(
     status: str = Query(default="all"),
     source: str = Query(default="all"),
     sort: str = Query(default="rank"),
+    q: str = Query(default="", max_length=240),
 ) -> dict[str, Any]:
     payload = get_run(run_id)
     candidates = list(payload.get("candidates", []))
@@ -281,6 +418,9 @@ def get_candidates(
             for candidate in candidates
             if candidate.get("library_source") == source or candidate.get("source") == source
         ]
+    query = q.strip().lower()
+    if query:
+        candidates = [candidate for candidate in candidates if _candidate_matches_query(candidate, query)]
     if sort == "activity":
         candidates.sort(key=lambda item: item.get("predicted_activity") or -999, reverse=True)
     elif sort == "applicability":
@@ -295,6 +435,30 @@ def get_candidates(
         "offset": offset,
         "items": candidates[offset : offset + limit],
     }
+
+
+def _candidate_matches_query(candidate: dict[str, Any], query: str) -> bool:
+    decision = candidate.get("decision") or {}
+    descriptors = candidate.get("descriptors") or {}
+    text_parts = [
+        candidate.get("candidate_id"),
+        candidate.get("smiles"),
+        candidate.get("source"),
+        candidate.get("library_source"),
+        candidate.get("source_compound_id"),
+        candidate.get("source_name"),
+        candidate.get("diversity_cluster"),
+        candidate.get("screening_stage"),
+        candidate.get("prefilter_reason"),
+        candidate.get("target_specific_interpretation"),
+        decision.get("final_status"),
+        *(decision.get("reasons") or []),
+        *(decision.get("hard_gate_failures") or []),
+        *(decision.get("critic_findings") or []),
+        *(descriptors.get("alerts") or []),
+        *(descriptors.get("severe_alerts") or []),
+    ]
+    return query in " ".join(str(part) for part in text_parts if part is not None).lower()
 
 
 @app.get("/api/runs/{run_id}/candidates/{candidate_id}/conformer")
@@ -359,6 +523,59 @@ def get_thresholds() -> dict[str, Any]:
     return result.threshold_registry
 
 
+def _run_pipeline_managed(config: PipelineConfig):
+    request_id = f"request_{int(time.time() * 1000)}"
+    queued_at = time.time()
+    _RUN_STATUSES[request_id] = {
+        "run_id": request_id,
+        "state": "queued",
+        "message": "Run is waiting for a Target-SAFE worker.",
+        "queued_at": queued_at,
+        "compute_profile": config.compute_profile,
+    }
+    future = _RUN_EXECUTOR.submit(run_pipeline, config)
+    _RUN_STATUSES[request_id]["state"] = "running"
+    _RUN_STATUSES[request_id]["started_at"] = time.time()
+    started = time.perf_counter()
+    try:
+        result = future.result(timeout=900)
+    except TimeoutError as exc:
+        _RUN_STATUSES[request_id].update(
+            {
+                "state": "timeout",
+                "message": "Run exceeded the 900 second API wait budget; worker may still be shutting down.",
+                "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+            }
+        )
+        raise HTTPException(status_code=504, detail="Target-SAFE run timed out.") from exc
+    except Exception as exc:
+        _RUN_STATUSES[request_id].update(
+            {
+                "state": "failed",
+                "message": str(exc),
+                "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+            }
+        )
+        raise
+    duration_ms = round((time.perf_counter() - started) * 1000, 2)
+    status_payload = {
+        "run_id": result.run_id,
+        "state": "finished",
+        "message": "Run completed and is available in this API process.",
+        "duration_ms": duration_ms,
+        "compute_profile": config.compute_profile,
+        "candidate_count": len(result.candidates),
+        "performance_summary": result.performance_summary,
+        "cache_summary": result.cache_summary,
+        "api_circuit_breaker_summary": result.api_circuit_breaker_summary,
+    }
+    _RUN_STATUSES[result.run_id] = status_payload
+    _RUN_STATUSES[request_id].update({"state": "finished", "linked_run_id": result.run_id, "duration_ms": duration_ms})
+    _RECENT_PERFORMANCE.append(status_payload)
+    del _RECENT_PERFORMANCE[:-24]
+    return result
+
+
 def _selected_llm_model(provider: str, model: str, custom_model: str) -> str:
     if custom_model.strip():
         return custom_model.strip()
@@ -383,23 +600,16 @@ def run_examples() -> list[dict[str, Any]]:
         "display_limit": 96,
         "conformer_limit": 24,
     }
-    return [
-        {
-            "id": "egfr_positive_control",
-            "label": "EGFR positive-control seed",
-            "description": "Known EGFR TKI-like seed; useful for checking target-specific scoring and graph evidence.",
-            "expected_behavior": "Should remain Go or upper Hold if evidence/API fallback is incomplete.",
-            "request": {
-                **base,
-                "seed_smiles": DEFAULT_SEED,
-                "candidate_count": 96,
-            },
-        },
+    examples = target_scenario_examples(base)
+    examples.extend([
         {
             "id": "caffeine_out_of_domain",
             "label": "Caffeine out-of-domain control",
             "description": "Drug-like but unrelated xanthine scaffold for applicability-domain stress testing.",
             "expected_behavior": "Should not become confident Go; expected Hold due weak EGFR applicability/evidence.",
+            "scoring_mode": "stress_control",
+            "interpretation_limit": "Stress control for applicability-domain handling; not a disease-specific scoring scenario.",
+            "default_library_sources": ["seed_analog", "pubchem_reference"],
             "request": {
                 **base,
                 "seed_smiles": "Cn1cnc2c1c(=O)n(C)c(=O)n2C",
@@ -412,6 +622,9 @@ def run_examples() -> list[dict[str, Any]]:
             "label": "Invalid SMILES No-Go control",
             "description": "Intentional bad structure for failure-path and No-Go audit verification.",
             "expected_behavior": "Invalid control candidate should be No-Go with valid_smiles hard blocker.",
+            "scoring_mode": "stress_control",
+            "interpretation_limit": "Failure-path test case; useful for checking error handling and candidate-level No-Go audit.",
+            "default_library_sources": ["seed_analog"],
             "request": {
                 **base,
                 "seed_smiles": "C1CC",
@@ -427,6 +640,9 @@ def run_examples() -> list[dict[str, Any]]:
             "label": "Structural alert stress control",
             "description": "Alert-heavy molecule used to verify Hold/No-Go warning behavior.",
             "expected_behavior": "Should surface structural-alert review or blocker gates.",
+            "scoring_mode": "stress_control",
+            "interpretation_limit": "Structural-alert stress test; alerts are review signals, not candidate-specific toxicity proof.",
+            "default_library_sources": ["seed_analog", "pubchem_reference"],
             "request": {
                 **base,
                 "seed_smiles": "O=N(=O)c1ccc(N=Nc2ccccc2)cc1",
@@ -439,6 +655,9 @@ def run_examples() -> list[dict[str, Any]]:
             "label": "Uploaded mini-library demo",
             "description": "Small pasted library that exercises import, invalid-row handling, and staged screening.",
             "expected_behavior": "Should report uploaded count, duplicates/invalid rows, and detailed subset evaluation.",
+            "scoring_mode": "stress_control",
+            "interpretation_limit": "Upload workflow and malformed-row handling demo.",
+            "default_library_sources": ["seed_analog", "uploaded"],
             "request": {
                 **base,
                 "seed_smiles": DEFAULT_SEED,
@@ -452,4 +671,5 @@ def run_examples() -> list[dict[str, Any]]:
                 ],
             },
         },
-    ]
+    ])
+    return examples

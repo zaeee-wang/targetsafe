@@ -8,6 +8,7 @@ from typing import Any
 from targetsafe.data_sources import PublicDataSources
 from targetsafe.decision import decide_candidate
 from targetsafe.models import CandidateRecord, DecisionResult, EvidenceBundle, GateAudit
+from targetsafe.observability import APIGate, RunLogger, classify_error
 from targetsafe.runtime import default_model_for_provider, normalize_llm_provider
 from targetsafe.thresholds import ThresholdRegistry
 
@@ -20,6 +21,7 @@ class LLMClient:
         base_url: str | None = None,
         model: str | None = None,
         provider: str | None = None,
+        logger: RunLogger | None = None,
     ) -> None:
         self.requested = enabled
         self.provider = normalize_llm_provider(provider)
@@ -29,6 +31,7 @@ class LLMClient:
         self.base_url = (base_url or self._default_base_url()).rstrip("/")
         self.model = model or self._default_model()
         self.last_error = ""
+        self.logger = logger
 
     def chat(self, system: str, user: str) -> str | None:
         if not self.enabled:
@@ -66,13 +69,27 @@ class LLMClient:
         }
 
     def _chat_openai_compatible(self, system: str, user: str) -> str | None:
+        endpoint = f"{self.base_url}/chat/completions"
+        gate = APIGate(
+            provider=self.provider,
+            enabled=self.enabled,
+            requires_key=True,
+            api_key=self.api_key,
+            timeout_seconds=12,
+            cache_fallback=False,
+            logger=self.logger,
+        )
+        gate_payload = gate.check(endpoint=endpoint, source="LLM")
+        if not gate_payload["allowed"]:
+            self.last_error = "LLM API gate denied the request."
+            return None
         payload = {
             "model": self.model,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.2,
         }
         request = urllib.request.Request(
-            f"{self.base_url}/chat/completions",
+            endpoint,
             data=json.dumps(payload).encode("utf-8"),
             headers={
                 "Authorization": f"Bearer {self.api_key}",
@@ -81,14 +98,36 @@ class LLMClient:
             method="POST",
         )
         try:
+            if self.logger:
+                self.logger.log("tool_call_started", source="LLM", provider=self.provider, endpoint=endpoint, model=self.model)
             with urllib.request.urlopen(request, timeout=12) as response:
                 data = json.loads(response.read().decode("utf-8"))
+            if self.logger:
+                self.logger.log("tool_call_finished", source="LLM", provider=self.provider, endpoint=endpoint, status="ok")
             return data["choices"][0]["message"]["content"]
         except Exception as exc:
             self.last_error = f"{self.provider} request failed with {exc.__class__.__name__}."
+            if self.logger:
+                error = classify_error("llm_provider_error", "LLM", str(exc), run_id=self.logger.run_id, fallback_used=True)
+                self.logger.log("tool_call_failed", source="LLM", provider=self.provider, endpoint=endpoint, error=error.to_dict())
+                self.logger.log_error(error)
             return None
 
     def _chat_anthropic(self, system: str, user: str) -> str | None:
+        endpoint = f"{self.base_url}/messages"
+        gate = APIGate(
+            provider=self.provider,
+            enabled=self.enabled,
+            requires_key=True,
+            api_key=self.api_key,
+            timeout_seconds=12,
+            cache_fallback=False,
+            logger=self.logger,
+        )
+        gate_payload = gate.check(endpoint=endpoint, source="LLM")
+        if not gate_payload["allowed"]:
+            self.last_error = "LLM API gate denied the request."
+            return None
         payload = {
             "model": self.model,
             "system": system,
@@ -97,7 +136,7 @@ class LLMClient:
             "messages": [{"role": "user", "content": user}],
         }
         request = urllib.request.Request(
-            f"{self.base_url}/messages",
+            endpoint,
             data=json.dumps(payload).encode("utf-8"),
             headers={
                 "x-api-key": self.api_key,
@@ -107,13 +146,21 @@ class LLMClient:
             method="POST",
         )
         try:
+            if self.logger:
+                self.logger.log("tool_call_started", source="LLM", provider=self.provider, endpoint=endpoint, model=self.model)
             with urllib.request.urlopen(request, timeout=12) as response:
                 data = json.loads(response.read().decode("utf-8"))
+            if self.logger:
+                self.logger.log("tool_call_finished", source="LLM", provider=self.provider, endpoint=endpoint, status="ok")
             content = data.get("content") or []
             text_parts = [part.get("text", "") for part in content if isinstance(part, dict)]
             return "\n".join(part for part in text_parts if part).strip() or None
         except Exception as exc:
             self.last_error = f"{self.provider} request failed with {exc.__class__.__name__}."
+            if self.logger:
+                error = classify_error("llm_provider_error", "LLM", str(exc), run_id=self.logger.run_id, fallback_used=True)
+                self.logger.log("tool_call_failed", source="LLM", provider=self.provider, endpoint=endpoint, error=error.to_dict())
+                self.logger.log_error(error)
             return None
 
     def _default_base_url(self) -> str:

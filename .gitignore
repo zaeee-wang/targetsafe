@@ -7,5 +7,8 @@ __pycache__/
 work/
 outputs/targetsafe_*_result.json
 outputs/targetsafe_*_targetsafe_report.html
+outputs/evaluation_metrics_egfr.json
+outputs/qsar_validation_report.html
+outputs/scaffold_split_summary.json
 frontend/node_modules/
 frontend/dist/

@@ -1,0 +1,9 @@
+.git
+.venv
+__pycache__
+*.pyc
+work
+outputs/targetsafe_*_result.json
+outputs/targetsafe_*_targetsafe_report.html
+frontend/node_modules
+frontend/dist

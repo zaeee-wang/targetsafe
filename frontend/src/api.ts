@@ -6,6 +6,7 @@ import type {
   LlmProvider,
   LlmTestResult,
   LibraryImportResult,
+  MoleculeCheckResult,
   PipelineResult,
   RedesignReport,
   ReferenceDrug,
@@ -43,6 +44,30 @@ export async function fetchRuntimeStatus(): Promise<RuntimeStatus> {
   const response = await fetch(`${API_BASE}/api/runtime-status`);
   if (!response.ok) {
     throw new Error("Unable to load runtime status.");
+  }
+  return response.json();
+}
+
+export async function fetchCacheStats(): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE}/api/cache/stats`);
+  if (!response.ok) {
+    throw new Error("Unable to load cache stats.");
+  }
+  return response.json();
+}
+
+export async function fetchPerformanceDebug(): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE}/api/debug/performance`);
+  if (!response.ok) {
+    throw new Error("Unable to load performance debug state.");
+  }
+  return response.json();
+}
+
+export async function fetchRunStatus(runId: string): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE}/api/runs/${runId}/status`);
+  if (!response.ok) {
+    throw new Error("Unable to load run status.");
   }
   return response.json();
 }
@@ -90,6 +115,14 @@ export async function fetchRunExamples(): Promise<RunExample[]> {
   return response.json();
 }
 
+export async function fetchTargetProfiles(): Promise<Array<Record<string, unknown>>> {
+  const response = await fetch(`${API_BASE}/api/target-profiles`);
+  if (!response.ok) {
+    throw new Error("Unable to load target profiles.");
+  }
+  return response.json();
+}
+
 export async function fetchDecisionRules(): Promise<Record<string, unknown>> {
   const response = await fetch(`${API_BASE}/api/decision-rules`);
   if (!response.ok) {
@@ -116,7 +149,7 @@ export async function fetchKnownContext(runId: string, candidateId: string): Pro
 
 export async function fetchCandidates(
   runId: string,
-  options: { limit: number; offset: number; status?: string; source?: string; sort?: string }
+  options: { limit: number; offset: number; status?: string; source?: string; sort?: string; q?: string }
 ): Promise<CandidatePage> {
   const params = new URLSearchParams({
     limit: String(options.limit),
@@ -125,6 +158,7 @@ export async function fetchCandidates(
     source: options.source ?? "all",
     sort: options.sort ?? "rank"
   });
+  if (options.q?.trim()) params.set("q", options.q.trim());
   const response = await fetch(`${API_BASE}/api/runs/${runId}/candidates?${params.toString()}`);
   if (!response.ok) {
     throw new Error("Unable to load candidate page.");
@@ -160,6 +194,19 @@ export async function fetchDepiction(smiles: string): Promise<StructureDepiction
   return response.json();
 }
 
+export async function checkMolecule(smiles: string, name: string, target: string): Promise<MoleculeCheckResult> {
+  const response = await fetch(`${API_BASE}/api/molecule/check`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ smiles, name, target })
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || "Unable to check molecule.");
+  }
+  return response.json();
+}
+
 export async function fetchAgentTrace(runId: string): Promise<AgentEvent[]> {
   const response = await fetch(`${API_BASE}/api/runs/${runId}/agent-trace`);
   if (!response.ok) {
@@ -180,6 +227,38 @@ export async function fetchRedesignReport(runId: string): Promise<RedesignReport
   const response = await fetch(`${API_BASE}/api/runs/${runId}/redesign-report`);
   if (!response.ok) {
     throw new Error("Unable to load redesign report.");
+  }
+  return response.json();
+}
+
+export async function fetchAssayPlan(runId: string): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE}/api/runs/${runId}/assay-plan`);
+  if (!response.ok) {
+    throw new Error("Unable to load assay plan.");
+  }
+  return response.json();
+}
+
+export async function fetchActivityCliffs(runId: string): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE}/api/runs/${runId}/activity-cliffs`);
+  if (!response.ok) {
+    throw new Error("Unable to load activity cliff report.");
+  }
+  return response.json();
+}
+
+export async function fetchTargetReadiness(runId: string): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE}/api/runs/${runId}/target-readiness`);
+  if (!response.ok) {
+    throw new Error("Unable to load target readiness.");
+  }
+  return response.json();
+}
+
+export async function fetchRunLogs(runId: string): Promise<Array<Record<string, unknown>>> {
+  const response = await fetch(`${API_BASE}/api/runs/${runId}/logs`);
+  if (!response.ok) {
+    throw new Error("Unable to load run logs.");
   }
   return response.json();
 }

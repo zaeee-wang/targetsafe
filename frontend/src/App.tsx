@@ -1,14 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import * as THREE from "three";
 import {
   Activity,
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  Award,
+  BarChart3,
   BrainCircuit,
+  CheckCircle2,
+  CircleDot,
   Cpu,
   Download,
   FileText,
+  FlaskConical,
   GitBranch,
   Layers3,
   Loader2,
@@ -16,17 +22,22 @@ import {
   Maximize2,
   Moon,
   Network,
+  Plus,
   Play,
   RotateCcw,
+  Save,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Sun,
   TestTube2,
+  Trash2,
   X,
   ZoomIn,
   ZoomOut
 } from "lucide-react";
 import {
+  checkMolecule,
   createRun,
   fetchCandidates,
   fetchConformer,
@@ -50,11 +61,13 @@ import type {
   LlmProvider,
   LlmTestResult,
   LibraryImportResult,
+  MoleculeCheckResult,
   PipelineResult,
   ReferenceDrug,
   RunExample,
   RunRequest,
   RuntimeStatus,
+  SavedMolecule,
   Status,
   StructureDepiction
 } from "./types";
@@ -99,6 +112,7 @@ const DEFAULT_REQUEST: RunRequest = {
 const STATUS_ORDER: Status[] = ["Go", "Hold", "No-Go"];
 const VIEWS = [
   { id: "console", icon: <Activity size={18} /> },
+  { id: "judge", icon: <Award size={18} /> },
   { id: "atlas", icon: <Layers3 size={18} /> },
   { id: "twin", icon: <BrainCircuit size={18} /> },
   { id: "graph", icon: <GitBranch size={18} /> },
@@ -207,6 +221,7 @@ const CURATED_SEED_PRESETS: SeedPreset[] = [
 export default function App() {
   const [locale, setLocale] = useState<Locale>(getStoredLocale);
   const [theme, setTheme] = useState<ThemeMode>(getStoredTheme);
+  const [navCollapsed, setNavCollapsed] = useState(() => window.localStorage.getItem("targetsafe-nav-collapsed") !== "false");
   const [request, setRequest] = useState<RunRequest>(DEFAULT_REQUEST);
   const [profiles, setProfiles] = useState<Array<Record<string, unknown>>>([]);
   const [referenceDrugs, setReferenceDrugs] = useState<ReferenceDrug[]>([]);
@@ -228,6 +243,10 @@ export default function App() {
   }, [theme, locale]);
 
   useEffect(() => {
+    window.localStorage.setItem("targetsafe-nav-collapsed", String(navCollapsed));
+  }, [navCollapsed]);
+
+  useEffect(() => {
     fetchProfiles()
       .then(setProfiles)
       .catch(() => {
@@ -238,7 +257,7 @@ export default function App() {
           { id: "api-assisted", label: "API assisted", description: "Optional LLM graph-grounded summary." },
           { id: "full-research", label: "Full research mode", description: "Live evidence, GPU, and API support." }
         ]);
-    });
+      });
     fetchReferenceDrugs().then(setReferenceDrugs).catch(() => setReferenceDrugs([]));
     fetchRuntimeStatus().then(setRuntimeStatus).catch(() => setRuntimeStatus(null));
   }, []);
@@ -291,8 +310,15 @@ export default function App() {
   }
 
   return (
-    <main className="app-shell" data-theme={theme}>
-      <NavRail activeView={activeView} onChange={setActiveView} result={result} copy={copy} />
+    <main className={`app-shell ${navCollapsed ? "nav-is-collapsed" : "nav-is-open"}`} data-theme={theme}>
+      <NavRail
+        activeView={activeView}
+        onChange={setActiveView}
+        result={result}
+        copy={copy}
+        collapsed={navCollapsed}
+        onToggleCollapsed={() => setNavCollapsed((value) => !value)}
+      />
       <section className="workspace">
         <TopCommand
           request={request}
@@ -323,6 +349,19 @@ export default function App() {
             onRun={runTriage}
           />
         )}
+        {activeView === "judge" && (
+          <JudgeDemo
+            result={result}
+            counts={counts}
+            loading={loading}
+            copy={copy}
+            locale={locale}
+            onRun={runTriage}
+            onOpenCandidate={selectCandidate}
+            onOpenGraph={() => setActiveView("graph")}
+            onOpenReports={() => setActiveView("reports")}
+          />
+        )}
         {activeView === "atlas" && (
           <MoleculeAtlas
             result={result}
@@ -344,6 +383,8 @@ export default function App() {
             locale={locale}
             onMoleculeViewChange={setMoleculeView}
             onOpenGraph={() => setActiveView("graph")}
+            onOpenAtlas={() => setActiveView("atlas")}
+            onRun={() => runTriage()}
           />
         )}
         {activeView === "graph" && (
@@ -374,21 +415,30 @@ function NavRail({
   activeView,
   onChange,
   result,
-  copy
+  copy,
+  collapsed,
+  onToggleCollapsed
 }: {
   activeView: ViewId;
   onChange: (view: ViewId) => void;
   result: PipelineResult | null;
   copy: Copy;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }) {
   return (
-    <aside className="nav-rail" aria-label={copy.brand.navAria}>
+    <aside className={`nav-rail ${collapsed ? "collapsed" : "expanded"}`} aria-label={copy.brand.navAria}>
       <div className="brand-block">
         <div className="pulse-mark"><Activity size={18} /></div>
         <div>
           <span>Target-SAFE</span>
           <strong>{copy.brand.subtitle}</strong>
         </div>
+      </div>
+      <div className="nav-drawer-controls">
+        <button className="icon-action" onClick={onToggleCollapsed} type="button" aria-label={collapsed ? copy.nav.expand : copy.nav.collapse}>
+          {collapsed ? <ArrowRight size={17} /> : <ArrowLeft size={17} />}
+        </button>
       </div>
       <nav>
         {VIEWS.map((view) => (
@@ -399,11 +449,12 @@ function NavRail({
             type="button"
           >
             {view.icon}
-            <span>{copy.views[view.id]}</span>
+            <span>{copyText(copy, "views", view.id, fallbackViewLabel(view.id))}</span>
           </button>
         ))}
       </nav>
-      <div className="run-chip">
+      <div className={`run-chip ${result ? "loaded" : "pending"}`}>
+        <i aria-hidden="true" />
         <span>{result ? copy.nav.runLoaded : copy.nav.noRunYet}</span>
         <strong>{result?.run_id ?? copy.nav.ready}</strong>
       </div>
@@ -482,6 +533,189 @@ function TopCommand({
   );
 }
 
+function InteractiveAtom() {
+  const mountRef = useRef<HTMLDivElement | null>(null);
+  const [fallback, setFallback] = useState(false);
+
+  useEffect(() => {
+    const mount = mountRef.current;
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!mount || prefersReducedMotion) {
+      setFallback(true);
+      return;
+    }
+
+    let frame = 0;
+    let renderer: THREE.WebGLRenderer;
+    let disposed = false;
+    const pointer = { x: 0, y: 0 };
+
+    try {
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    } catch {
+      setFallback(true);
+      return;
+    }
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+    camera.position.set(0, 0, 8);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setClearColor(0x000000, 0);
+    mount.appendChild(renderer.domElement);
+
+    const group = new THREE.Group();
+    scene.add(group);
+
+    const nucleus = new THREE.Mesh(
+      new THREE.SphereGeometry(0.56, 48, 48),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xeef7ff,
+        emissive: 0x2766f8,
+        emissiveIntensity: 0.28,
+        roughness: 0.1,
+        metalness: 0.02,
+        transparent: true,
+        opacity: 0.72,
+        transmission: 0.35,
+        thickness: 0.45
+      })
+    );
+    group.add(nucleus);
+
+    const orbitPalette = [0x36d7ff, 0x2766f8, 0xffffff, 0xffb84d, 0x7df9ff];
+    const orbitLines: THREE.Line[] = [];
+    const particles: THREE.Mesh[] = [];
+    const particleGeometry = new THREE.SphereGeometry(0.035, 12, 12);
+
+    for (let orbitIndex = 0; orbitIndex < 14; orbitIndex += 1) {
+      const points: THREE.Vector3[] = [];
+      const radiusX = 2.28 + (orbitIndex % 4) * 0.14;
+      const radiusY = 0.76 + (orbitIndex % 5) * 0.06;
+      const twist = orbitIndex * 0.41;
+      for (let index = 0; index <= 220; index += 1) {
+        const angle = (index / 220) * Math.PI * 2;
+        points.push(new THREE.Vector3(
+          Math.cos(angle) * radiusX,
+          Math.sin(angle) * radiusY,
+          Math.sin(angle * 2 + twist) * 0.08
+        ));
+      }
+      const material = new THREE.LineBasicMaterial({
+        color: orbitPalette[orbitIndex % orbitPalette.length],
+        transparent: true,
+        opacity: orbitIndex % 3 === 0 ? 0.68 : 0.42,
+        blending: THREE.AdditiveBlending
+      });
+      const orbit = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), material);
+      orbit.rotation.set(
+        orbitIndex * 0.34,
+        orbitIndex * 0.19,
+        (orbitIndex / 14) * Math.PI * 2
+      );
+      orbitLines.push(orbit);
+      group.add(orbit);
+
+      if (orbitIndex % 2 === 0) {
+        const particle = new THREE.Mesh(
+          particleGeometry,
+          new THREE.MeshStandardMaterial({
+            color: orbitPalette[(orbitIndex + 1) % orbitPalette.length],
+            emissive: orbitPalette[(orbitIndex + 1) % orbitPalette.length],
+            emissiveIntensity: 1.25,
+            roughness: 0.15
+          })
+        );
+        particles.push(particle);
+        group.add(particle);
+      }
+    }
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.72));
+    const keyLight = new THREE.PointLight(0x6aa8ff, 3.6, 18);
+    keyLight.position.set(2.6, 2.1, 3.8);
+    scene.add(keyLight);
+    const fillLight = new THREE.PointLight(0x36d7ff, 1.6, 14);
+    fillLight.position.set(-2.4, -1.8, 2.6);
+    scene.add(fillLight);
+    const warmLight = new THREE.PointLight(0xffb84d, 0.9, 10);
+    warmLight.position.set(0, -2.9, 2.2);
+    scene.add(warmLight);
+
+    const resize = () => {
+      const rect = mount.getBoundingClientRect();
+      const size = Math.max(220, Math.min(rect.width || 340, rect.height || 340));
+      renderer.setSize(size, size, false);
+      camera.aspect = 1;
+      camera.updateProjectionMatrix();
+    };
+    const onPointerMove = (event: PointerEvent) => {
+      const rect = mount.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / Math.max(rect.width, 1) - 0.5) * 0.7;
+      pointer.y = ((event.clientY - rect.top) / Math.max(rect.height, 1) - 0.5) * 0.5;
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(mount);
+    mount.addEventListener("pointermove", onPointerMove);
+    resize();
+
+    const animate = () => {
+      if (disposed) return;
+      const time = performance.now() * 0.001;
+      group.rotation.y += 0.0034;
+      group.rotation.x += (pointer.y - group.rotation.x) * 0.025;
+      group.rotation.z += (pointer.x - group.rotation.z) * 0.022;
+      orbitLines.forEach((orbit, index) => {
+        orbit.rotation.z += 0.0008 + index * 0.00004;
+      });
+      particles.forEach((particle, index) => {
+        const angle = time * (0.78 + index * 0.08) + index * 1.34;
+        particle.position.set(
+          Math.cos(angle) * (2.2 + (index % 3) * 0.12),
+          Math.sin(angle) * (0.78 + (index % 4) * 0.07),
+          Math.sin(angle * 1.7) * 0.42
+        );
+      });
+      renderer.render(scene, camera);
+      frame = requestAnimationFrame(animate);
+    };
+    frame = requestAnimationFrame(animate);
+
+    return () => {
+      disposed = true;
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      mount.removeEventListener("pointermove", onPointerMove);
+      scene.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        mesh.geometry?.dispose?.();
+        const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+        if (Array.isArray(material)) {
+          material.forEach((item) => item.dispose());
+        } else {
+          material?.dispose?.();
+        }
+      });
+      renderer.dispose();
+      renderer.domElement.remove();
+    };
+  }, []);
+
+  return (
+    <div className="orbital-visual atom3d-stage" aria-label="Interactive molecular evidence orbital">
+      <div className="atom-glass-sheen" aria-hidden="true" />
+      <div ref={mountRef} className="atom3d-canvas" aria-hidden="true" />
+      {fallback && (
+        <div className="atom3d-fallback" aria-hidden="true">
+          <span />
+          <i />
+          <b />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RunConsole({
   request,
   profiles,
@@ -528,6 +762,16 @@ function RunConsole({
   );
   const selectedProvider = llmProviders.find((provider) => provider.id === request.llm_provider) ?? llmProviders[0];
   const selectedProviderModels = selectedProvider?.models?.length ? selectedProvider.models : ["custom"];
+  const [consoleSectionOpen, setConsoleSectionOpen] = useState<Record<string, boolean>>({
+    inputs: true,
+    design: true,
+    library: true,
+    llm: false
+  });
+
+  function toggleConsoleSection(id: string) {
+    setConsoleSectionOpen((current) => ({ ...current, [id]: !current[id] }));
+  }
 
   useEffect(() => {
     fetchLlmProviders().then(setLlmProviders).catch(() => {
@@ -611,11 +855,7 @@ function RunConsole({
   return (
     <section className="view-frame console-view">
       <div className="console-stage">
-        <div className="orbital-visual" aria-hidden="true">
-          <span />
-          <i />
-          <b />
-        </div>
+        <InteractiveAtom />
         <div className="console-copy">
           <p className="eyebrow">{copy.console.eyebrow}</p>
           <h2>{copy.console.heading}</h2>
@@ -630,14 +870,29 @@ function RunConsole({
             </button>
             <button className="ghost-action" onClick={() => setExampleDrawerOpen(true)} type="button">
               <TestTube2 size={16} />
-              {copyText(copy, "console", "openExamples", "Open test cases")}
+              {copyText(copy, "console", "openTargetScenarios", "Open target scenarios")}
             </button>
           </div>
         </div>
       </div>
 
+      <GuidedSetupStrip
+        request={request}
+        result={result}
+        loading={loading}
+        copy={copy}
+        onOpenExamples={() => setExampleDrawerOpen(true)}
+      />
+
       <div className="console-grid">
         <section className="input-deck">
+          <ConsoleSection
+            id="inputs"
+            title={copyText(copy, "console", "inputsSection", "Inputs")}
+            open={consoleSectionOpen.inputs}
+            onToggle={toggleConsoleSection}
+          >
+            <div className="console-section-grid">
           <label>
             {copy.console.disease}
             <input
@@ -697,6 +952,29 @@ function RunConsole({
             <Toggle label={copy.console.gpu} value={request.use_gpu} onChange={(use_gpu) => onRequestChange({ ...request, use_gpu })} />
             <Toggle label={copy.console.llm} value={request.use_llm} onChange={(use_llm) => onRequestChange({ ...request, use_llm })} />
           </div>
+            </div>
+          </ConsoleSection>
+          <ConsoleSection
+            id="design"
+            title={copyText(copy, "console", "designBenchSection", "Molecule Design Bench")}
+            open={consoleSectionOpen.design}
+            onToggle={toggleConsoleSection}
+          >
+            <MoleculeDesignBench
+              copy={copy}
+              locale={locale}
+              target={request.target}
+              seedSmiles={request.seed_smiles}
+              onUseAsSeed={(seed_smiles) => onRequestChange({ ...request, seed_smiles })}
+            />
+          </ConsoleSection>
+          <ConsoleSection
+            id="library"
+            title={copyText(copy, "console", "librarySection", "Library")}
+            open={consoleSectionOpen.library}
+            onToggle={toggleConsoleSection}
+          >
+            <div className="console-section-grid">
           <div className="library-controls wide">
             <label>
               {copyText(copy, "console", "libraryLimit", "Library limit")}
@@ -744,6 +1022,33 @@ function RunConsole({
               />
             ))}
           </div>
+          <div className="wide upload-panel">
+            <label>
+              {copyText(copy, "console", "uploadLibrary", "Paste SMILES library")}
+              <textarea
+                value={uploadText}
+                placeholder={copyText(copy, "console", "uploadPlaceholder", "One SMILES per line, optionally: SMILES,name")}
+                onChange={(event) => setUploadText(event.target.value)}
+              />
+            </label>
+            <button className="ghost-action" onClick={handleLibraryImport} disabled={uploading || !uploadText.trim()} type="button">
+              {uploading ? <Loader2 className="spin" size={16} /> : <Layers3 size={16} />}
+              {copyText(copy, "console", "importLibrary", "Import pasted library")}
+            </button>
+            {uploadResult && (
+              <span className="upload-result">
+                {uploadResult.compound_count} {copyText(copy, "console", "importedCompounds", "compounds imported")} / {uploadResult.library_id}
+              </span>
+            )}
+          </div>
+            </div>
+          </ConsoleSection>
+          <ConsoleSection
+            id="llm"
+            title={copyText(copy, "console", "llmSection", "LLM / API")}
+            open={consoleSectionOpen.llm}
+            onToggle={toggleConsoleSection}
+          >
           <div className="api-key-panel wide">
             <label>
               {copyText(copy, "console", "llmProvider", "LLM provider")}
@@ -817,30 +1122,13 @@ function RunConsole({
             {llmTest && <span className={`connection-result ${llmTest.ok ? "ok" : "fail"}`}>{llmTest.message}</span>}
             <p>{copyText(copy, "console", "llmKeyNote", "The key is sent only with the run request and is not returned in reports or stored in run results.")}</p>
           </div>
-          <div className="wide upload-panel">
-            <label>
-              {copyText(copy, "console", "uploadLibrary", "Paste SMILES library")}
-              <textarea
-                value={uploadText}
-                placeholder={copyText(copy, "console", "uploadPlaceholder", "One SMILES per line, optionally: SMILES,name")}
-                onChange={(event) => setUploadText(event.target.value)}
-              />
-            </label>
-            <button className="ghost-action" onClick={handleLibraryImport} disabled={uploading || !uploadText.trim()} type="button">
-              {uploading ? <Loader2 className="spin" size={16} /> : <Layers3 size={16} />}
-              {copyText(copy, "console", "importLibrary", "Import pasted library")}
-            </button>
-            {uploadResult && (
-              <span className="upload-result">
-                {uploadResult.compound_count} {copyText(copy, "console", "importedCompounds", "compounds imported")} / {uploadResult.library_id}
-              </span>
-            )}
-          </div>
+          </ConsoleSection>
         </section>
 
         <section className="status-deck">
           <Metric icon={<Cpu />} label={copy.console.computeProfile} value={profileLabel(profiles, request.compute_profile, copy)} />
           <Metric icon={<TestTube2 />} label={copy.console.evidenceMode} value={evidenceModeLabel(result, request, copy)} />
+          <Metric icon={<CircleDot />} label={copyText(copy, "reports", "targetReadiness", "Target readiness")} value={targetReadinessLabel(result)} />
           <Metric icon={<Network />} label={copy.console.evidenceGraph} value={result ? `${result.evidence_graph.summary.node_count} nodes` : copy.console.runPending} />
           <div className="status-strip">
             {STATUS_ORDER.map((status) => (
@@ -898,6 +1186,411 @@ function RunConsole({
   );
 }
 
+function ConsoleSection({
+  id,
+  title,
+  open,
+  onToggle,
+  children
+}: {
+  id: string;
+  title: string;
+  open: boolean;
+  onToggle: (id: string) => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className={`console-section ${open ? "open" : "closed"}`}>
+      <button className="console-section-trigger" onClick={() => onToggle(id)} type="button" aria-expanded={open}>
+        <span>{title}</span>
+        <b>{open ? "-" : "+"}</b>
+      </button>
+      {open && <div className="console-section-body">{children}</div>}
+    </section>
+  );
+}
+
+function MoleculeDesignBench({
+  copy,
+  locale,
+  target,
+  seedSmiles,
+  onUseAsSeed
+}: {
+  copy: Copy;
+  locale: Locale;
+  target: string;
+  seedSmiles: string;
+  onUseAsSeed: (smiles: string) => void;
+}) {
+  const [name, setName] = useState("");
+  const [smiles, setSmiles] = useState(seedSmiles);
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<MoleculeCheckResult | null>(null);
+  const [saved, setSaved] = useState<SavedMolecule[]>(() => loadSavedMolecules());
+
+  useEffect(() => {
+    if (!smiles.trim()) setSmiles(seedSmiles);
+  }, [seedSmiles]);
+
+  function persist(next: SavedMolecule[]) {
+    setSaved(next);
+    window.localStorage.setItem("targetsafe-saved-molecules", JSON.stringify(next.slice(0, 24)));
+  }
+
+  async function handleCheck() {
+    if (!smiles.trim()) return;
+    setChecking(true);
+    setError("");
+    try {
+      setResult(await checkMolecule(smiles, name, target));
+    } catch (exc) {
+      setResult(null);
+      setError(exc instanceof Error ? exc.message : copyText(copy, "console", "designCheckFailed", "Molecule check failed."));
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  function handleSave() {
+    if (!result?.valid) return;
+    const item: SavedMolecule = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name: result.name || name || copyText(copy, "console", "designUntitled", "Untitled molecule"),
+      smiles: result.canonical_smiles || result.input_smiles,
+      target: result.target,
+      viability: result.viability,
+      saved_at: new Date().toISOString(),
+      structure_svg: result.structure_svg
+    };
+    persist([item, ...saved.filter((savedItem) => savedItem.smiles !== item.smiles)]);
+  }
+
+  return (
+    <div className="design-bench">
+      <div className="bench-editor">
+        <div>
+          <p className="eyebrow">{copyText(copy, "console", "designBenchEyebrow", "Research workspace")}</p>
+          <h3>{copyText(copy, "console", "designBenchTitle", "Check, save, and reuse molecule ideas.")}</h3>
+          <p>{copyText(copy, "console", "designBenchBody", "Paste or edit a SMILES idea, run a quick structure sanity check, then save plausible seeds for later triage.")}</p>
+        </div>
+        <label>
+          {copyText(copy, "console", "designName", "Molecule name")}
+          <input value={name} placeholder="EGFR idea A1" onChange={(event) => setName(event.target.value)} />
+        </label>
+        <label className="wide">
+          {copyText(copy, "console", "designSmiles", "Design SMILES")}
+          <textarea value={smiles} placeholder="Paste, edit, or compose a candidate SMILES" onChange={(event) => setSmiles(event.target.value)} />
+        </label>
+        <div className="bench-actions">
+          <button className="primary-action" type="button" onClick={handleCheck} disabled={checking || !smiles.trim()}>
+            {checking ? <Loader2 className="spin" size={16} /> : <FlaskConical size={16} />}
+            {copyText(copy, "console", "designCheck", "Check feasibility")}
+          </button>
+          <button className="ghost-action" type="button" onClick={() => setSmiles(seedSmiles)}>
+            <Plus size={16} />
+            {copyText(copy, "console", "designLoadSeed", "Load current seed")}
+          </button>
+          <button className="ghost-action" type="button" onClick={() => result?.can_use_as_seed && onUseAsSeed(result.canonical_smiles || result.input_smiles)} disabled={!result?.can_use_as_seed}>
+            <Play size={16} />
+            {copyText(copy, "console", "designUseAsSeed", "Use as seed")}
+          </button>
+          <button className="ghost-action" type="button" onClick={handleSave} disabled={!result?.valid}>
+            <Save size={16} />
+            {copyText(copy, "console", "designSave", "Save molecule")}
+          </button>
+        </div>
+        {error && <p className="error-box">{error}</p>}
+      </div>
+
+      <div className="bench-result">
+        {result ? (
+          <>
+            <div className="bench-figure">
+              <StructureImage
+                src={result.structure_svg}
+                alt={`${result.name || "molecule"} structure`}
+                smiles={result.canonical_smiles || result.input_smiles}
+                fallback={copy.atlas.noStructure}
+              />
+            </div>
+            <div className={`bench-verdict ${result.viability}`}>
+              <strong>{moleculeViabilityLabel(result.viability, copy)}</strong>
+              <span>{result.valid ? result.canonical_smiles : result.input_smiles}</span>
+            </div>
+            <dl className="bench-descriptors">
+              <div><dt>MW</dt><dd>{formatNumber(result.descriptors.molecular_weight, 1)}</dd></div>
+              <div><dt>LogP</dt><dd>{formatNumber(result.descriptors.logp, 2)}</dd></div>
+              <div><dt>QED</dt><dd>{formatNumber(result.descriptors.qed, 2)}</dd></div>
+              <div><dt>SA</dt><dd>{formatNumber(result.descriptors.sa_score, 2)}</dd></div>
+            </dl>
+            <ul className="compact-list">
+              {result.reasons.map((reason) => <li key={reason}>{localizeBackendText(reason, locale)}</li>)}
+              {result.suggestions.map((suggestion) => <li key={suggestion}>{localizeBackendText(suggestion, locale)}</li>)}
+            </ul>
+            <p className="context-note">{localizeBackendText(result.interpretation, locale)}</p>
+          </>
+        ) : (
+          <div className="bench-placeholder">
+            <FlaskConical size={28} />
+            <strong>{copyText(copy, "console", "designPlaceholderTitle", "No molecule checked yet")}</strong>
+            <p>{copyText(copy, "console", "designPlaceholderText", "Run a quick check to see structure validity, descriptor limits, alerts, and whether it can become a seed.")}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="saved-molecules">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">{copyText(copy, "console", "designSavedEyebrow", "Saved workspace")}</p>
+            <h3>{copyText(copy, "console", "designSavedTitle", "Molecules to revisit")}</h3>
+          </div>
+          <span>{saved.length}</span>
+        </div>
+        {saved.length ? (
+          <div className="saved-molecule-grid">
+            {saved.slice(0, 8).map((item) => (
+              <article key={item.id}>
+                <span className="saved-structure">
+                  <StructureImage src={item.structure_svg} alt={`${item.name} structure`} smiles={item.smiles} fallback={copy.atlas.noStructure} />
+                </span>
+                <div>
+                  <strong>{item.name}</strong>
+                  <small>{moleculeViabilityLabel(item.viability, copy)} / {item.target}</small>
+                  <code>{item.smiles}</code>
+                </div>
+                <button type="button" className="icon-button" onClick={() => onUseAsSeed(item.smiles)} aria-label={copyText(copy, "console", "designUseAsSeed", "Use as seed")}>
+                  <Play size={14} />
+                </button>
+                <button type="button" className="icon-button" onClick={() => persist(saved.filter((candidate) => candidate.id !== item.id))} aria-label={copyText(copy, "console", "designDelete", "Delete saved molecule")}>
+                  <Trash2 size={14} />
+                </button>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="context-note">{copyText(copy, "console", "designNoSaved", "Saved molecules stay in this browser so research ideas are not lost between runs.")}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GuidedSetupStrip({
+  request,
+  result,
+  loading,
+  copy,
+  onOpenExamples
+}: {
+  request: RunRequest;
+  result: PipelineResult | null;
+  loading: boolean;
+  copy: Copy;
+  onOpenExamples: () => void;
+}) {
+  const summary = buildGuidedRunSummary(result, copy);
+  const steps = [
+    {
+      index: "01",
+      title: copyText(copy, "console", "guideScope", "Select evidence scope"),
+      text: request.allow_network
+        ? copyText(copy, "console", "guideScopeLive", "Live public evidence is requested; fallback will be labelled if APIs fail.")
+        : copyText(copy, "console", "guideScopeDemo", "Offline demo evidence is selected for stable rehearsal.")
+    },
+    {
+      index: "02",
+      title: copyText(copy, "console", "guideCompute", "Choose compute lane"),
+      text: request.use_gpu
+        ? copyText(copy, "console", "guideComputeGpu", "GPU lane is requested and runtime truth will show whether it was actually used.")
+        : copyText(copy, "console", "guideComputeCpu", "CPU lane keeps the run reproducible without local acceleration.")
+    },
+    {
+      index: "03",
+      title: copyText(copy, "console", "guideRun", "Run staged triage"),
+      text: loading
+        ? copyText(copy, "console", "guideRunning", "Candidates are moving through validity, descriptors, QSAR, evidence, and critic review.")
+        : copyText(copy, "console", "guideRunReady", "Run the selected profile or open a test case to verify expected behavior.")
+    },
+    {
+      index: "04",
+      title: copyText(copy, "console", "guideInspect", "Inspect first candidate"),
+      text: summary.firstInspection
+    }
+  ];
+  return (
+    <section className="guided-strip" aria-label={copyText(copy, "console", "guidedSetup", "Guided setup")}>
+      <div className="flow-heading">
+        <span className="eyebrow">{copyText(copy, "console", "startHere", "Start here")}</span>
+        <strong>{summary.title}</strong>
+        <button className="ghost-action compact" onClick={onOpenExamples} type="button">
+          <TestTube2 size={14} />
+          {copyText(copy, "console", "openTargetScenarios", "Open target scenarios")}
+        </button>
+      </div>
+      <div className="workflow-cards">
+        {steps.map((step) => (
+          <article className="workflow-card" key={step.index}>
+            <span>{step.index}</span>
+            <h3>{step.title}</h3>
+            <p>{step.text}</p>
+          </article>
+        ))}
+      </div>
+      {result && (
+        <div className="guided-run-summary">
+          <div>
+            <small>{copyText(copy, "console", "whatHappened", "What happened")}</small>
+            <strong>{summary.whatHappened}</strong>
+          </div>
+          <div>
+            <small>{copyText(copy, "console", "whyHold", "Why many candidates are Hold")}</small>
+            <strong>{summary.whyHold}</strong>
+          </div>
+          <div>
+            <small>{copyText(copy, "console", "needsValidation", "What needs validation")}</small>
+            <strong>{summary.needsValidation}</strong>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function JudgeDemo({
+  result,
+  counts,
+  loading,
+  copy,
+  locale,
+  onRun,
+  onOpenCandidate,
+  onOpenGraph,
+  onOpenReports
+}: {
+  result: PipelineResult | null;
+  counts: Record<Status, number>;
+  loading: boolean;
+  copy: Copy;
+  locale: Locale;
+  onRun: (profileOverride?: string) => void;
+  onOpenCandidate: (id: string, view?: ViewId) => void;
+  onOpenGraph: () => void;
+  onOpenReports: () => void;
+}) {
+  const summary = buildJudgeDemoSummary(result, counts, copy);
+  if (!result) {
+    return (
+      <section className="view-frame judge-view">
+        <div className="judge-hero">
+          <EvidenceWave />
+          <div>
+            <p className="eyebrow">Judge Demo</p>
+            <h2>{copyText(copy, "judge", "emptyHeading", "Show the agentic triage story after one run.")}</h2>
+            <p>{copyText(copy, "judge", "emptyBody", "Run Full research for a high-fidelity demo, or use Stable CPU demo when network/API conditions are uncertain.")}</p>
+            <div className="run-action-row">
+              <button className="primary-action large" onClick={() => onRun()} disabled={loading} type="button">
+                {loading ? <Loader2 className="spin" size={18} /> : <Play size={18} />}
+                {copyText(copy, "console", "runSelected", "Run Full research").replace("{profile}", "Full research")}
+              </button>
+              <button className="ghost-action" onClick={() => onRun("cpu-demo")} disabled={loading} type="button">
+                {copyText(copy, "console", "stableDemo", "Stable CPU demo")}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="view-frame judge-view">
+      <div className="judge-hero">
+        <EvidenceWave />
+        <div>
+          <p className="eyebrow">Molecular Evidence Flow</p>
+          <h2>{copyText(copy, "judge", "heading", "A judge-ready path from problem to defensible triage.")}</h2>
+          <p>{copyText(copy, "judge", "body", "Target-SAFE narrows an early compound library by showing what was planned, which tools acted, what evidence was observed, and why each candidate is Go, Hold, or No-Go.")}</p>
+          <div className="judge-actions">
+            <button className="ghost-action" onClick={onOpenGraph} type="button"><GitBranch size={16} />{copy.graph.heading}</button>
+            <button className="ghost-action" onClick={onOpenReports} type="button"><FileText size={16} />{copy.reports.heading}</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="judge-metric-band">
+        <MetricNumber label={copyText(copy, "judge", "problem", "Problem clarity")} value={copyText(copy, "judge", "problemValue", "Lead triage")} detail={copyText(copy, "judge", "problemDetail", "Not drug invention")} />
+        <MetricNumber label={copyText(copy, "judge", "agenticLoop", "Agentic loop")} value={`${summary.eventCount}`} detail={copyText(copy, "judge", "events", "events recorded")} />
+        <MetricNumber label={copyText(copy, "judge", "library", "Library screened")} value={formatInteger(result.library_report?.valid_unique_count)} detail={copyText(copy, "judge", "unique", "valid unique")} />
+        <MetricNumber label={copyText(copy, "judge", "decisionMix", "Decision mix")} value={`${counts.Go}/${counts.Hold}/${counts["No-Go"]}`} detail="Go / Hold / No-Go" />
+        <MetricNumber label={copyText(copy, "judge", "runtimeTruth", "Runtime truth")} value={summary.runtimeLabel} detail={summary.runtimeDetail} />
+      </div>
+
+      <div className="judge-section-grid">
+        <section className="judge-panel wide">
+          <span className="eyebrow">01 / Why this problem</span>
+          <h3>{copyText(copy, "judge", "whyProblemTitle", "Generated candidates are cheap; defensible prioritization is not.")}</h3>
+          <p>{copyText(copy, "judge", "whyProblemBody", "The system is designed to show validity, drug-likeness, uncertainty, applicability domain, evidence mode, and next validation before anyone treats a molecule as promising.")}</p>
+        </section>
+        <section className="judge-panel">
+          <span className="eyebrow">02 / Agentic loop</span>
+          <AgentLoopTimeline result={result} />
+        </section>
+        <section className="judge-panel">
+          <span className="eyebrow">03 / Evaluation criteria</span>
+          <div className="criteria-map">
+            {summary.criteriaMap.map((item) => (
+              <div key={item.label}>
+                <strong>{item.label}</strong>
+                <span>{item.evidence}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <section className="judge-panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">04 / Three candidate stories</span>
+            <h3>{copyText(copy, "judge", "candidateStories", "One Go, one Hold, one No-Go when available.")}</h3>
+          </div>
+        </div>
+        <div className="story-grid">
+          {summary.stories.map((story) => (
+            <CandidateStoryCard
+              key={story.status}
+              story={story}
+              copy={copy}
+              locale={locale}
+              onOpenCandidate={onOpenCandidate}
+            />
+          ))}
+        </div>
+      </section>
+
+      <div className="judge-section-grid">
+        <section className="judge-panel">
+          <span className="eyebrow">05 / Redesign loop</span>
+          <h3>{formatInteger(result.redesign_report?.created_children)} {copyText(copy, "judge", "redesignChildren", "critic-triggered children")}</h3>
+          <p>{copyText(copy, "judge", "redesignBody", "Critic findings can become constrained analog suggestions, then those children are re-evaluated rather than accepted on narrative alone.")}</p>
+          <div className="metric-list">
+            {(result.redesign_report?.comparisons ?? []).slice(0, 4).map((item, index) => (
+              <span key={index}>{String(item.parent_candidate_id ?? "")} {"->"} {String(item.child_candidate_id ?? "")}</span>
+            ))}
+          </div>
+        </section>
+        <section className="judge-panel">
+          <span className="eyebrow">06 / Contribution</span>
+          <h3>{copyText(copy, "judge", "contributionTitle", "Transparent narrowing of early lead review.")}</h3>
+          <p>{copyText(copy, "judge", "contributionBody", "The contribution is not claiming efficacy. It is making the first review pass faster, auditable, and honest about uncertainty.")}</p>
+        </section>
+      </div>
+    </section>
+  );
+}
+
 function ExecutionRealityPanel({
   request,
   result,
@@ -922,6 +1615,9 @@ function ExecutionRealityPanel({
   const library = result?.library_report;
   const evidence = result?.evidence_mode;
   const toolErrors = result?.tool_error_summary;
+  const performance = result?.performance_summary;
+  const cache = result?.cache_summary;
+  const circuit = result?.api_circuit_breaker_summary;
   return (
     <section className="execution-reality">
       <div className="panel-heading">
@@ -978,6 +1674,21 @@ function ExecutionRealityPanel({
           label={copyText(copy, "console", "toolErrors", "Tool calls")}
           value={toolErrors?.has_live_errors ? copyText(copy, "console", "fallback", "fallback") : copyText(copy, "console", "available", "available")}
           detail={`${formatInteger(toolErrors?.total_calls)} calls / ${String(toolErrors?.interpretation ?? "Run pending.")}`}
+        />
+        <RealityCard
+          label={copyText(copy, "console", "performance", "Performance")}
+          value={performance?.duration_ms ? `${Math.round(Number(performance.duration_ms))} ms` : copy.console.runPending}
+          detail={`${formatInteger(performance?.candidate_count)} candidates / ${formatInteger(performance?.tool_call_count)} tool calls`}
+        />
+        <RealityCard
+          label={copyText(copy, "console", "cache", "Cache")}
+          value={`${formatInteger(cache?.entries)} entries`}
+          detail={`${formatInteger((cache?.runtime as Record<string, unknown> | undefined)?.hits)} hits / ${formatInteger((cache?.runtime as Record<string, unknown> | undefined)?.misses)} misses / ${formatInteger(cache?.stale_entries)} stale`}
+        />
+        <RealityCard
+          label={copyText(copy, "console", "circuitBreaker", "API circuit breaker")}
+          value={`${Object.keys((circuit?.open_sources as Record<string, unknown> | undefined) ?? {}).length} open`}
+          detail={String(circuit?.policy ?? "Per-run source circuit status appears after a run.")}
         />
       </div>
     </section>
@@ -1157,25 +1868,39 @@ function ExampleDrawer({
   onApply: (example: RunExample) => void;
   onClose: () => void;
 }) {
+  const [scenarioDrawerFilter, setScenarioDrawerFilter] = useState("all");
+  const modes = ["all", ...Array.from(new Set(examples.map((example) => String(example.scoring_mode ?? "scenario"))))];
+  const visibleExamples = examples.filter((example) => scenarioDrawerFilter === "all" || String(example.scoring_mode ?? "scenario") === scenarioDrawerFilter);
   return (
     <div className="drawer-backdrop" role="presentation">
-      <aside className="seed-drawer example-drawer" aria-label={copyText(copy, "console", "exampleDrawerTitle", "Input examples and test cases")}>
+      <aside className="seed-drawer example-drawer" aria-label={copyText(copy, "console", "targetScenarioTitle", "Target Scenario Library")}>
         <div className="drawer-header">
           <div>
-            <p className="eyebrow">{copyText(copy, "console", "exampleDrawerEyebrow", "Run examples")}</p>
-            <h3>{copyText(copy, "console", "exampleDrawerTitle", "Input examples and test cases")}</h3>
-            <p>{copyText(copy, "console", "exampleDrawerBody", "Use these presets to understand what each field means and to verify expected Go/Hold/No-Go behavior.")}</p>
+            <p className="eyebrow">{copyText(copy, "console", "targetScenarioEyebrow", "Target scenarios")}</p>
+            <h3>{copyText(copy, "console", "targetScenarioTitle", "Target Scenario Library")}</h3>
+            <p>{copyText(copy, "console", "targetScenarioBody", "Choose scored pilots, evidence-only targets, and stress controls. Non-EGFR targets show readiness without overclaiming confident Go decisions.")}</p>
           </div>
           <button className="icon-action" onClick={onClose} type="button" title={copy.seedDrawer.close}>
             <X size={18} />
           </button>
         </div>
+        <div className="drawer-category-row example-filter-row">
+          {modes.map((mode) => (
+            <button className={scenarioDrawerFilter === mode ? "active" : ""} key={mode} onClick={() => setScenarioDrawerFilter(mode)} type="button">
+              {mode === "all" ? copy.graph.all : mode.replaceAll("_", " ")}
+            </button>
+          ))}
+        </div>
         <div className="example-grid">
-          {examples.map((example) => (
+          {visibleExamples.map((example) => (
             <article className="example-card" key={example.id}>
-              <span>{example.id}</span>
+              <div className="example-card-top">
+                <span>{example.id}</span>
+                <b className={`scenario-badge ${scenarioClass(example.scoring_mode)}`}>{example.scoring_mode ?? "scenario"}</b>
+              </div>
               <h4>{example.label}</h4>
               <p>{example.description}</p>
+              {example.interpretation_limit && <p className="scenario-limit">{example.interpretation_limit}</p>}
               <div className="drawer-warning">
                 <TestTube2 size={15} />
                 <small>{example.expected_behavior}</small>
@@ -1185,13 +1910,14 @@ function ExampleDrawer({
                 <dt>Target</dt><dd>{String(example.request.target ?? "-")}</dd>
                 <dt>Seed</dt><dd><code>{String(example.request.seed_smiles ?? "-")}</code></dd>
                 <dt>Sources</dt><dd>{(example.request.library_sources ?? []).join(", ")}</dd>
+                <dt>Mode</dt><dd>{example.scoring_mode ?? "-"}</dd>
               </dl>
               <button className="primary-action" onClick={() => onApply(example)} type="button">
                 {copyText(copy, "console", "applyExample", "Apply example")}
               </button>
             </article>
           ))}
-          {!examples.length && <p className="context-note">{copyText(copy, "console", "examplesLoading", "Examples are loading or unavailable.")}</p>}
+          {!visibleExamples.length && <p className="context-note">{copyText(copy, "console", "examplesLoading", "Examples are loading or unavailable.")}</p>}
         </div>
       </aside>
     </div>
@@ -1231,22 +1957,83 @@ function MoleculePreview({ preset, copy }: { preset: SeedPreset; copy: Copy }) {
 
 function LazyStructureImage({ candidate, fallback }: { candidate: Candidate; fallback: string }) {
   const [structure, setStructure] = useState(candidate.structure_svg);
+  const [status, setStatus] = useState<"loading" | "rendered" | "fallback" | "failed">(candidate.structure_svg ? "rendered" : "fallback");
   useEffect(() => {
     setStructure(candidate.structure_svg);
+    setStatus(candidate.structure_svg ? "rendered" : candidate.smiles ? "loading" : "fallback");
     if (candidate.structure_svg || !candidate.smiles) return;
     let cancelled = false;
     fetchDepiction(candidate.smiles)
       .then((payload) => {
         if (!cancelled) setStructure(payload.structure_svg);
+        if (!cancelled) setStatus(payload.structure_svg ? "rendered" : "fallback");
       })
       .catch(() => {
         if (!cancelled) setStructure(null);
+        if (!cancelled) setStatus("failed");
       });
     return () => {
       cancelled = true;
     };
   }, [candidate.candidate_id, candidate.smiles, candidate.structure_svg]);
-  return structure ? <img src={structure} alt="" /> : <i>{fallback}</i>;
+  return (
+    <StructureImage
+      src={structure}
+      alt={`${candidate.candidate_id} structure`}
+      smiles={candidate.smiles}
+      fallback={fallback}
+      initialStatus={status}
+    />
+  );
+}
+
+function StructureImage({
+  src,
+  alt,
+  smiles,
+  fallback,
+  initialStatus = "fallback"
+}: {
+  src?: string | null;
+  alt: string;
+  smiles?: string;
+  fallback: string;
+  initialStatus?: "loading" | "rendered" | "fallback" | "failed";
+}) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+  const status = src && !failed ? "rendered" : initialStatus === "loading" ? "loading" : failed ? "failed" : "fallback";
+  return (
+    <span className={`structure-render ${status}`}>
+      {src && !failed ? (
+        <img src={src} alt={alt} onError={() => setFailed(true)} />
+      ) : (
+        <MoleculeSchematic smiles={smiles ?? ""} fallback={fallback} />
+      )}
+      <small>{structureRenderLabel(status, fallback)}</small>
+    </span>
+  );
+}
+
+function MoleculeSchematic({ smiles, fallback }: { smiles: string; fallback: string }) {
+  const atoms = smiles.match(/Cl|Br|Si|Na|Li|Mg|Ca|[A-Z][a-z]?|[cnops]/g)?.slice(0, 14) ?? [];
+  if (!atoms.length) return <i>{fallback}</i>;
+  return (
+    <span className="smiles-schematic" aria-hidden="true">
+      {atoms.map((atom, index) => (
+        <b key={`${atom}-${index}`} className={`atom-token atom-${atom.toLowerCase()}`}>
+          {atom[0].toUpperCase() + atom.slice(1)}
+        </b>
+      ))}
+    </span>
+  );
+}
+
+function structureRenderLabel(status: string, fallback: string) {
+  if (status === "rendered") return "2D";
+  if (status === "loading") return "...";
+  if (status === "failed") return "fallback";
+  return fallback;
 }
 
 function MoleculeAtlas({
@@ -1268,13 +2055,44 @@ function MoleculeAtlas({
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [sortMode, setSortMode] = useState("rank");
+  const [riskFilter, setRiskFilter] = useState("all");
+  const [domainFilter, setDomainFilter] = useState("all");
+  const [qualityFilter, setQualityFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [compareIds, setCompareIds] = useState<string[]>([]);
   const [page, setPage] = useState(0);
   const [candidatePage, setCandidatePage] = useState<CandidatePage | null>(null);
   const pageSize = 48;
   const heroCandidate = candidates[0];
   const sourceOptions = ["all", ...Array.from(new Set(candidates.map((candidate) => candidate.library_source || candidate.source))).sort()];
-  const visibleCandidates = candidatePage?.items ?? candidates.slice(page * pageSize, page * pageSize + pageSize);
+  const normalizedQuery = query.trim().toLowerCase();
+  const pageCandidates = candidatePage?.items ?? candidates.slice(page * pageSize, page * pageSize + pageSize);
+  const visibleCandidates = pageCandidates.filter((candidate) => {
+    const alerts = candidate.descriptors?.alerts?.length ?? 0;
+    const severe = candidate.descriptors?.severe_alerts?.length ?? 0;
+    const qed = candidate.descriptors?.qed ?? 0;
+    const textHaystack = [
+      candidate.candidate_id,
+      candidate.smiles,
+      candidate.source_name,
+      candidate.source_compound_id,
+      candidate.library_source,
+      candidate.decision?.final_status,
+      ...(candidate.decision?.reasons ?? [])
+    ].join(" ").toLowerCase();
+    if (normalizedQuery && !textHaystack.includes(normalizedQuery)) return false;
+    if (riskFilter === "alerts" && alerts === 0) return false;
+    if (riskFilter === "blockers" && severe === 0 && !(candidate.decision?.hard_gate_failures?.length)) return false;
+    if (domainFilter === "in" && !candidate.in_applicability_domain) return false;
+    if (domainFilter === "review" && candidate.in_applicability_domain) return false;
+    if (qualityFilter === "high-qed" && qed < 0.7) return false;
+    if (qualityFilter === "low-qed" && qed >= 0.5) return false;
+    return true;
+  });
   const totalCandidates = candidatePage?.total ?? candidates.length;
+  const comparedCandidates = compareIds
+    .map((id) => candidates.find((candidate) => candidate.candidate_id === id))
+    .filter(Boolean) as Candidate[];
 
   useEffect(() => {
     if (!result?.run_id) {
@@ -1287,7 +2105,8 @@ function MoleculeAtlas({
       offset: page * pageSize,
       status: statusFilter,
       source: sourceFilter,
-      sort: sortMode
+      sort: sortMode,
+      q: query
     })
       .then((payload) => {
         if (!cancelled) setCandidatePage(payload);
@@ -1298,13 +2117,25 @@ function MoleculeAtlas({
     return () => {
       cancelled = true;
     };
-  }, [result?.run_id, page, statusFilter, sourceFilter, sortMode]);
+  }, [result?.run_id, page, statusFilter, sourceFilter, sortMode, query]);
 
   function updateFilter(next: { status?: string; source?: string; sort?: string }) {
     if (next.status !== undefined) setStatusFilter(next.status);
     if (next.source !== undefined) setSourceFilter(next.source);
     if (next.sort !== undefined) setSortMode(next.sort);
     setPage(0);
+  }
+
+  function updateQuery(value: string) {
+    setQuery(value);
+    setPage(0);
+  }
+
+  function toggleCompare(candidateId: string) {
+    setCompareIds((ids) => {
+      if (ids.includes(candidateId)) return ids.filter((id) => id !== candidateId);
+      return [...ids, candidateId].slice(-4);
+    });
   }
 
   return (
@@ -1323,9 +2154,15 @@ function MoleculeAtlas({
       <div className="atlas-hero">
         <div className="molecule-spotlight">
           {heroCandidate?.structure_svg ? (
-            <img src={heroCandidate.structure_svg} alt={`${heroCandidate.candidate_id} structure`} />
+            <StructureImage
+              src={heroCandidate.structure_svg}
+              alt={`${heroCandidate.candidate_id} structure`}
+              smiles={heroCandidate.smiles}
+              fallback={copy.atlas.noStructure}
+              initialStatus="rendered"
+            />
           ) : (
-            <div className="empty-inline">{copy.atlas.emptyFigure}</div>
+            <ReferencePreviewStage referenceDrugs={referenceDrugs} copy={copy} />
           )}
         </div>
         <div className="atlas-note">
@@ -1335,6 +2172,8 @@ function MoleculeAtlas({
         </div>
       </div>
 
+      <LibraryMetricBand result={result} copy={copy} />
+
       <div className="atlas-columns">
         <section>
           <div className="panel-heading">
@@ -1342,8 +2181,20 @@ function MoleculeAtlas({
               <p className="eyebrow">{copy.atlas.generated}</p>
               <h3>{visibleCandidates.length || 0} {copy.atlas.shown} / {totalCandidates || 0} {copy.atlas.scored}</h3>
             </div>
+            <button className="ghost-action compact" disabled={comparedCandidates.length < 2} type="button">
+              <SlidersHorizontal size={15} />
+              {copyText(copy, "atlas", "compare", "Compare")} {comparedCandidates.length}/4
+            </button>
           </div>
           <div className="atlas-filters">
+            <label className="atlas-search">
+              <Search size={15} />
+              <input
+                value={query}
+                placeholder={copyText(copy, "atlas", "searchPlaceholder", "Search ID, SMILES, source, or rationale")}
+                onChange={(event) => updateQuery(event.target.value)}
+              />
+            </label>
             <select value={statusFilter} onChange={(event) => updateFilter({ status: event.target.value })}>
               <option value="all">{copy.graph.all}</option>
               {STATUS_ORDER.map((status) => <option key={status} value={status}>{statusLabel(status, copy)}</option>)}
@@ -1359,28 +2210,52 @@ function MoleculeAtlas({
               <option value="applicability">{copyText(copy, "atlas", "sortApplicability", "Applicability")}</option>
               <option value="qed">{copyText(copy, "atlas", "sortQed", "QED")}</option>
             </select>
+            <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)}>
+              <option value="all">{copyText(copy, "atlas", "riskAll", "all risk flags")}</option>
+              <option value="alerts">{copyText(copy, "atlas", "riskAlerts", "alerts only")}</option>
+              <option value="blockers">{copyText(copy, "atlas", "riskBlockers", "blockers only")}</option>
+            </select>
+            <select value={domainFilter} onChange={(event) => setDomainFilter(event.target.value)}>
+              <option value="all">{copyText(copy, "atlas", "domainAll", "all domains")}</option>
+              <option value="in">{copyText(copy, "atlas", "domainIn", "in-domain")}</option>
+              <option value="review">{copyText(copy, "atlas", "domainReview", "AD review")}</option>
+            </select>
+            <select value={qualityFilter} onChange={(event) => setQualityFilter(event.target.value)}>
+              <option value="all">{copyText(copy, "atlas", "qualityAll", "all quality")}</option>
+              <option value="high-qed">{copyText(copy, "atlas", "qualityHigh", "QED >= 0.70")}</option>
+              <option value="low-qed">{copyText(copy, "atlas", "qualityLow", "QED < 0.50")}</option>
+            </select>
           </div>
           {candidates.length === 0 ? (
-            <EmptyPanel icon={<Search />} title={copy.atlas.emptyTitle} text={copy.atlas.emptyText} />
+            <AtlasPreRunPanel referenceDrugs={referenceDrugs} copy={copy} onOpenKnown={onOpenKnown} />
           ) : (
             <div className="molecule-grid">
               {visibleCandidates.map((candidate) => (
-                <button
+                <article
                   className={`molecule-card ${selectedId === candidate.candidate_id ? "selected" : ""}`}
-                  onClick={() => onSelectCandidate(candidate.candidate_id)}
                   key={candidate.candidate_id}
-                  type="button"
                 >
                   <span className={`mini-status ${statusClass(candidate.decision?.final_status ?? "Unscored")}`}>
                     {statusLabel(candidate.decision?.final_status ?? "Unscored", copy)}
                   </span>
-                  <span className="molecule-thumb">
-                    <LazyStructureImage candidate={candidate} fallback={copy.atlas.noStructure} />
-                  </span>
-                  <strong>{candidate.candidate_id}</strong>
-                  <small>{copy.atlas.lowerPchembl} {formatNumber(candidate.prediction_interval?.lower, 2)}</small>
-                  <small>AD {formatNumber(candidate.applicability_score, 2)} / {librarySourceLabel(candidate.library_source || candidate.source, copy)}</small>
-                </button>
+                  <button className="molecule-open" onClick={() => onSelectCandidate(candidate.candidate_id)} type="button">
+                    <span className="molecule-thumb">
+                      <LazyStructureImage candidate={candidate} fallback={copy.atlas.noStructure} />
+                    </span>
+                    <strong>{candidate.candidate_id}</strong>
+                    <small>{copy.atlas.lowerPchembl} {formatNumber(candidate.prediction_interval?.lower, 2)}</small>
+                    <small>AD {formatNumber(candidate.applicability_score, 2)} / {librarySourceLabel(candidate.library_source || candidate.source, copy)}</small>
+                    <em>{inspectionHint(candidate, copy)}</em>
+                  </button>
+                  <button
+                    className={`compare-toggle ${compareIds.includes(candidate.candidate_id) ? "on" : ""}`}
+                    onClick={() => toggleCompare(candidate.candidate_id)}
+                    type="button"
+                  >
+                    {compareIds.includes(candidate.candidate_id) ? <CheckCircle2 size={15} /> : <CircleDot size={15} />}
+                    {copyText(copy, "atlas", "compare", "Compare")}
+                  </button>
+                </article>
             ))}
           </div>
           )}
@@ -1408,11 +2283,13 @@ function MoleculeAtlas({
             {referenceDrugs.slice(0, 24).map((drug) => (
               <article className="reference-card" key={drug.drug_id}>
                 <div className="reference-structure">
-                  {drug.structure_svg || drug.structure_image_url ? (
-                    <img src={(drug.structure_svg || drug.structure_image_url) ?? undefined} alt={`${drug.name} structure`} />
-                  ) : (
-                    <span>{copy.atlas.noFigure}</span>
-                  )}
+                  <StructureImage
+                    src={drug.structure_svg || drug.structure_image_url}
+                    alt={`${drug.name} structure`}
+                    smiles={drug.smiles}
+                    fallback={copy.atlas.noFigure}
+                    initialStatus={drug.structure_svg || drug.structure_image_url ? "rendered" : "fallback"}
+                  />
                 </div>
                 <div>
                   <strong>{drug.name}</strong>
@@ -1424,7 +2301,197 @@ function MoleculeAtlas({
           </div>
         </section>
       </div>
+      {comparedCandidates.length >= 2 && (
+        <CompareDrawer
+          candidates={comparedCandidates}
+          copy={copy}
+          onRemove={(candidateId) => setCompareIds((ids) => ids.filter((id) => id !== candidateId))}
+          onClear={() => setCompareIds([])}
+          onOpenCandidate={onSelectCandidate}
+        />
+      )}
     </section>
+  );
+}
+
+function LibraryMetricBand({ result, copy }: { result: PipelineResult | null; copy: Copy }) {
+  const report = result?.library_report;
+  const counts = result?.evaluation_report?.status_counts;
+  const items = [
+    { label: copyText(copy, "reports", "rawInput", "Raw input"), value: formatInteger(report?.raw_input_count), detail: copyText(copy, "atlas", "libraryRawDetail", "from selected sources") },
+    { label: copyText(copy, "reports", "validUnique", "Valid unique"), value: formatInteger(report?.valid_unique_count), detail: copyText(copy, "atlas", "libraryUniqueDetail", "deduplicated molecules") },
+    { label: copyText(copy, "reports", "detailedEvaluation", "Detailed evaluation"), value: formatInteger(report?.detailed_evaluation_count), detail: copyText(copy, "atlas", "libraryDetailedDetail", "descriptor + QSAR pass") },
+    { label: copyText(copy, "reports", "renderedStructures", "Rendered structures"), value: formatInteger(report?.display_asset_count), detail: copyText(copy, "atlas", "libraryRenderedDetail", "lazy 2D assets") },
+    { label: "Go / Hold / No-Go", value: `${counts?.Go ?? 0}/${counts?.Hold ?? 0}/${counts?.["No-Go"] ?? 0}`, detail: copyText(copy, "atlas", "libraryDecisionDetail", "decision rail") }
+  ];
+  return (
+    <section className="library-metric-band" aria-label={copyText(copy, "atlas", "libraryMetrics", "Library screening metrics")}>
+      {items.map((item) => (
+        <div key={item.label}>
+          <span>{item.label}</span>
+          <strong>{item.value}</strong>
+          <small>{item.detail}</small>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function ReferencePreviewStage({ referenceDrugs, copy }: { referenceDrugs: ReferenceDrug[]; copy: Copy }) {
+  const preview = referenceDrugs.filter((drug) => drug.smiles).slice(0, 6);
+  if (!preview.length) return <div className="empty-inline">{copy.atlas.emptyFigure}</div>;
+  return (
+    <div className="reference-preview-stage" aria-label={copyText(copy, "atlas", "referencePreview", "Reference molecule preview")}>
+      {preview.map((drug) => (
+        <span key={drug.drug_id}>
+          <StructureImage
+            src={drug.structure_svg || drug.structure_image_url}
+            alt={`${drug.name} structure`}
+            smiles={drug.smiles}
+            fallback={copy.atlas.noFigure}
+            initialStatus={drug.structure_svg || drug.structure_image_url ? "rendered" : "fallback"}
+          />
+          <b>{drug.name}</b>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function AtlasPreRunPanel({
+  referenceDrugs,
+  copy,
+  onOpenKnown
+}: {
+  referenceDrugs: ReferenceDrug[];
+  copy: Copy;
+  onOpenKnown: () => void;
+}) {
+  const preview = referenceDrugs.filter((drug) => drug.smiles).slice(0, 8);
+  return (
+    <div className="atlas-empty-panel">
+      <div>
+        <p className="eyebrow">{copyText(copy, "atlas", "beforeRun", "Before a run")}</p>
+        <h3>{copyText(copy, "atlas", "emptyUsefulTitle", "Start from reference structures, then run triage to score candidates.")}</h3>
+        <p>{copyText(copy, "atlas", "emptyUsefulText", "The atlas is not blank: reference molecules are available now, and generated candidates will appear here with search, filters, and lazy 2D rendering after a run.")}</p>
+        <button className="primary-action" onClick={onOpenKnown} type="button">
+          <ShieldCheck size={16} />
+          {copy.atlas.openKnown}
+        </button>
+      </div>
+      <div className="reference-mini-grid">
+        {preview.map((drug) => (
+          <article key={drug.drug_id}>
+            <StructureImage
+              src={drug.structure_svg || drug.structure_image_url}
+              alt={`${drug.name} structure`}
+              smiles={drug.smiles}
+              fallback={copy.atlas.noFigure}
+              initialStatus={drug.structure_svg || drug.structure_image_url ? "rendered" : "fallback"}
+            />
+            <strong>{drug.name}</strong>
+            <small>{drug.category ?? copy.atlas.reference}</small>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TwinPreRunPanel({ copy, onRun, onOpenAtlas }: { copy: Copy; onRun: () => void; onOpenAtlas: () => void }) {
+  const steps = [
+    [copyText(copy, "twin", "emptyStepRun", "Run triage"), copyText(copy, "twin", "emptyStepRunText", "Create or import candidates and let the tool gates evaluate them.")],
+    [copyText(copy, "twin", "emptyStepPick", "Select a molecule"), copyText(copy, "twin", "emptyStepPickText", "Open a candidate from the atlas by decision, source, risk, or search.")],
+    [copyText(copy, "twin", "emptyStepInspect", "Inspect gates"), copyText(copy, "twin", "emptyStepInspectText", "Review 2D/3D structure, gate audit, known-drug context, and next validation.")]
+  ];
+  return (
+    <section className="empty-action-stage">
+      <BrainCircuit size={28} />
+      <div>
+        <p className="eyebrow">{copy.twin.eyebrow}</p>
+        <h2>{copy.twin.emptyTitle}</h2>
+        <p>{copy.twin.emptyText}</p>
+      </div>
+      <div className="empty-step-grid">
+        {steps.map(([title, text], index) => (
+          <article key={title}>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <strong>{title}</strong>
+            <p>{text}</p>
+          </article>
+        ))}
+      </div>
+      <div className="run-action-row">
+        <button className="primary-action" onClick={onRun} type="button">
+          <Play size={16} />
+          {copy.top.run}
+        </button>
+        <button className="ghost-action" onClick={onOpenAtlas} type="button">
+          <Layers3 size={16} />
+          {copy.views.atlas}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function CompareDrawer({
+  candidates,
+  copy,
+  onRemove,
+  onClear,
+  onOpenCandidate
+}: {
+  candidates: Candidate[];
+  copy: Copy;
+  onRemove: (candidateId: string) => void;
+  onClear: () => void;
+  onOpenCandidate: (candidateId: string) => void;
+}) {
+  return (
+    <aside className="compare-drawer" aria-label={copyText(copy, "atlas", "compareDrawer", "Candidate comparison drawer")}>
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">{copyText(copy, "atlas", "compareEyebrow", "Side-by-side review")}</p>
+          <h3>{copyText(copy, "atlas", "compareHeading", "Compare candidate evidence before opening a twin.")}</h3>
+        </div>
+        <button className="ghost-action compact" onClick={onClear} type="button">
+          <X size={15} />
+          {copyText(copy, "atlas", "clearCompare", "Clear")}
+        </button>
+      </div>
+      <div className="compare-grid">
+        {candidates.map((candidate) => (
+          <article className="compare-card" key={candidate.candidate_id}>
+            <button className="compare-remove" onClick={() => onRemove(candidate.candidate_id)} type="button" aria-label={`Remove ${candidate.candidate_id}`}>
+              <X size={14} />
+            </button>
+            <div className="compare-figure">
+              <LazyStructureImage candidate={candidate} fallback={copy.atlas.noStructure} />
+            </div>
+            <h4>{candidate.candidate_id}</h4>
+            <span className={`mini-status ${statusClass(candidate.decision?.final_status ?? "Unscored")}`}>
+              {statusLabel(candidate.decision?.final_status ?? "Unscored", copy)}
+            </span>
+            <dl>
+              <dt>{copy.atlas.lowerPchembl}</dt>
+              <dd>{formatNumber(candidate.prediction_interval?.lower, 2)}</dd>
+              <dt>AD</dt>
+              <dd>{formatNumber(candidate.applicability_score, 2)}</dd>
+              <dt>QED</dt>
+              <dd>{formatNumber(candidate.descriptors?.qed, 2)}</dd>
+              <dt>Alerts</dt>
+              <dd>{candidate.descriptors?.alerts?.length ?? 0}</dd>
+              <dt>Gate</dt>
+              <dd>{topGateEffect(candidate)}</dd>
+            </dl>
+            <button className="ghost-action compact" onClick={() => onOpenCandidate(candidate.candidate_id)} type="button">
+              {copyText(copy, "atlas", "openTwin", "Open twin")}
+            </button>
+          </article>
+        ))}
+      </div>
+    </aside>
   );
 }
 
@@ -1437,7 +2504,9 @@ function CandidateTwin({
   copy,
   locale,
   onMoleculeViewChange,
-  onOpenGraph
+  onOpenGraph,
+  onOpenAtlas,
+  onRun
 }: {
   candidate: Candidate | null;
   result: PipelineResult | null;
@@ -1448,6 +2517,8 @@ function CandidateTwin({
   locale: Locale;
   onMoleculeViewChange: (view: MoleculeView) => void;
   onOpenGraph: () => void;
+  onOpenAtlas: () => void;
+  onRun: () => void;
 }) {
   const [lazyConformer, setLazyConformer] = useState<ConformerPayload | null>(null);
   const [conformerLoading, setConformerLoading] = useState(false);
@@ -1474,7 +2545,7 @@ function CandidateTwin({
   if (!candidate) {
     return (
       <section className="view-frame">
-        <EmptyPanel icon={<BrainCircuit />} title={copy.twin.emptyTitle} text={copy.twin.emptyText} />
+        <TwinPreRunPanel copy={copy} onRun={onRun} onOpenAtlas={onOpenAtlas} />
       </section>
     );
   }
@@ -1502,7 +2573,13 @@ function CandidateTwin({
           </div>
           {moleculeView === "2d" ? (
             <div className="structure-stage">
-              {candidate.structure_svg ? <img src={candidate.structure_svg} alt={`${candidate.candidate_id} 2D structure`} /> : <span>{copy.twin.no2d}</span>}
+              <StructureImage
+                src={candidate.structure_svg}
+                alt={`${candidate.candidate_id} 2D structure`}
+                smiles={candidate.smiles}
+                fallback={copy.twin.no2d}
+                initialStatus={candidate.structure_svg ? "rendered" : "fallback"}
+              />
             </div>
           ) : (
             <InteractiveConformerView
@@ -1532,7 +2609,12 @@ function CandidateTwin({
               </div>
             ))}
           </div>
-          <GateAuditTable decision={decision} copy={copy} />
+          <GateAuditRail decision={decision} copy={copy} />
+          <CandidateDecisionFlow candidate={candidate} copy={copy} locale={locale} />
+          <details className="gate-details">
+            <summary>{copyText(copy, "twin", "openGateTable", "Open detailed gate audit")}</summary>
+            <GateAuditTable decision={decision} copy={copy} />
+          </details>
           <button className="ghost-action" onClick={onOpenGraph} type="button">
             <GitBranch size={16} />
             {copy.twin.inspectGraph}
@@ -1563,6 +2645,36 @@ function CandidateTwin({
             {(decision?.follow_up ?? []).slice(0, 4).map((item) => <li key={item}>{localizeBackendText(item, locale)}</li>)}
           </ul>
         </section>
+        <section className="detail-block">
+          <h3>{copyText(copy, "twin", "nextAssay", "Next assay")}</h3>
+          <p className="context-note">{candidate.target_specific_interpretation || copyText(copy, "twin", "targetInterpretationPending", "Target-specific interpretation appears after a run.")}</p>
+          <div className="assay-list">
+            {(candidate.assay_recommendations ?? []).slice(0, 4).map((item, index) => (
+              <article key={index} className={`assay-card ${String(item["priority"] ?? "review")}`}>
+                <strong>{String(item["assay"] ?? "Assay recommendation")}</strong>
+                <span>{String(item["priority"] ?? "review")} / {String(item["cost_time_class"] ?? "-")}</span>
+                <p>{String(item["decision_impact"] ?? item["rationale"] ?? "")}</p>
+              </article>
+            ))}
+            {!(candidate.assay_recommendations ?? []).length && <p className="context-note">{copyText(copy, "twin", "noAssayPlan", "No assay recommendation was generated for this candidate.")}</p>}
+          </div>
+        </section>
+        <section className="detail-block">
+          <h3>{copyText(copy, "twin", "cliffAndErrors", "Cliff / error flags")}</h3>
+          <div className="flag-list">
+            {(candidate.activity_cliff_flags ?? []).slice(0, 3).map((item, index) => (
+              <span key={`cliff-${index}`}>
+                {copyText(copy, "twin", "activityCliff", "Activity cliff")} {String(item["risk_level"] ?? "review")} / Δ {String(item["activity_delta"] ?? "-")}
+              </span>
+            ))}
+            {(candidate.candidate_errors ?? []).slice(0, 3).map((item, index) => (
+              <span key={`error-${index}`} className="error-flag">
+                {String(item["error_code"] ?? item["category"] ?? "error")}: {String(item["user_message"] ?? "")}
+              </span>
+            ))}
+            {!(candidate.activity_cliff_flags ?? []).length && !(candidate.candidate_errors ?? []).length && <p className="context-note">{copyText(copy, "twin", "noFlags", "No candidate-level cliff or error flag recorded.")}</p>}
+          </div>
+        </section>
         <section className="detail-block redesign-block">
           <h3>{copy.twin.redesign}</h3>
           {candidate.redesign_reason || parentCandidate ? (
@@ -1586,6 +2698,52 @@ function CandidateTwin({
         </section>
       </div>
     </section>
+  );
+}
+
+function GateAuditRail({ decision, copy }: { decision: Candidate["decision"]; copy: Copy }) {
+  const gates = decision?.gate_audit ?? [];
+  const groups = [
+    { status: "pass", label: copyText(copy, "criterionValues", "pass", "pass") },
+    { status: "review", label: copyText(copy, "criterionValues", "review", "review") },
+    { status: "block", label: copyText(copy, "criterionValues", "block", "block") }
+  ];
+  if (!gates.length) return null;
+  return (
+    <div className="gate-rail" aria-label={copyText(copy, "twin", "gateRail", "Decision gate rail")}>
+      {groups.map((group) => {
+        const subset = gates.filter((gate) => gate.status === group.status);
+        return (
+          <article className={`gate-rail-card ${group.status}`} key={group.status}>
+            <span>{group.label}</span>
+            <strong>{subset.length}</strong>
+            <p>{subset.slice(0, 2).map((gate) => gate.label || gate.gate_id).join(" / ") || copyText(copy, "twin", "noGate", "none")}</p>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function CandidateDecisionFlow({ candidate, copy, locale }: { candidate: Candidate; copy: Copy; locale: Locale }) {
+  const nodes = candidate.candidate_decision_flow ?? [];
+  if (!nodes.length) return null;
+  return (
+    <div className="candidate-flow" aria-label={copyText(copy, "twin", "candidateDecisionFlow", "Candidate decision flow")}>
+      <div className="candidate-flow-head">
+        <h4>{copyText(copy, "twin", "candidateDecisionFlow", "Candidate decision flow")}</h4>
+        <span>{copyText(copy, "twin", "flowHint", "Read left to right: gate observations become a decision.")}</span>
+      </div>
+      <div className="candidate-flow-track">
+        {nodes.map((node, index) => (
+          <article className={`candidate-flow-node ${flowStatusClass(node.status)}`} key={`${node.id}-${index}`}>
+            <span>{index + 1}</span>
+            <strong>{localizeFlowLabel(node.label, locale)}</strong>
+            <p>{localizeBackendText(node.summary, locale)}</p>
+          </article>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1739,6 +2897,7 @@ function EvidenceGraphExplorer({
   const [graphScope, setGraphScope] = useState("selected");
   const [nodeFilter, setNodeFilter] = useState("all");
   const [edgeFilter, setEdgeFilter] = useState("all");
+  const [labelMode, setLabelMode] = useState("auto");
 
   const nodes = graph?.nodes ?? [];
   const edges = graph?.edges ?? [];
@@ -1754,7 +2913,7 @@ function EvidenceGraphExplorer({
   });
   const layout = useMemo(() => graphLayout(visibleNodes), [visibleNodes]);
   const selectedSet = new Set(selected?.evidence_node_ids ?? []);
-  const showLabels = visibleNodes.length < 90 || zoom >= 1.45;
+  const showLabels = labelMode === "all" || (labelMode === "auto" && (visibleNodes.length < 90 || zoom >= 1.45));
 
   function fitView() {
     setZoom(1);
@@ -1776,6 +2935,7 @@ function EvidenceGraphExplorer({
           <p className="eyebrow">{copy.graph.eyebrow}</p>
           <h2>{copy.graph.heading}</h2>
         </div>
+        {nodes.length > 0 && (
         <div className="graph-toolbar">
           <select value={graphScope} onChange={(event) => setGraphScope(event.target.value)} aria-label={copy.graph.scopeAria}>
             <option value="selected">{copy.graph.scopes.selected}</option>
@@ -1788,11 +2948,18 @@ function EvidenceGraphExplorer({
           <select value={edgeFilter} onChange={(event) => setEdgeFilter(event.target.value)} aria-label={copy.graph.edgeFilter}>
             {edgeTypes.map((type) => <option key={type} value={type}>{type === "all" ? copy.graph.all : type}</option>)}
           </select>
+          <select value={labelMode} onChange={(event) => setLabelMode(event.target.value)} aria-label={copyText(copy, "graph", "labelDensity", "Label density")}>
+            <option value="auto">{copyText(copy, "graph", "labelsAuto", "labels auto")}</option>
+            <option value="focus">{copyText(copy, "graph", "labelsFocus", "focus labels")}</option>
+            <option value="all">{copyText(copy, "graph", "labelsAll", "all labels")}</option>
+            <option value="none">{copyText(copy, "graph", "labelsNone", "no labels")}</option>
+          </select>
           <button onClick={() => setZoom((value) => Math.min(2.8, value + 0.15))} type="button"><ZoomIn size={16} /></button>
           <button onClick={() => setZoom((value) => Math.max(0.45, value - 0.15))} type="button"><ZoomOut size={16} /></button>
           <button onClick={fitView} type="button"><Maximize2 size={16} /></button>
           <button onClick={centerSelected} type="button"><Search size={16} /></button>
         </div>
+        )}
       </div>
       <div
         className="graph-stage"
@@ -1828,7 +2995,7 @@ function EvidenceGraphExplorer({
                     onDoubleClick={() => candidateId && onSelectCandidate(candidateId, "twin")}
                   >
                     <circle cx={point.x} cy={point.y} r={node.type === "candidate" ? 15 : 10} className={`node ${node.type}`} />
-                    {(showLabels || selectedSet.has(node.id) || node.type === "target" || node.type === "decision") && (
+                    {labelMode !== "none" && (showLabels || selectedSet.has(node.id) || node.type === "target" || node.type === "decision") && (
                       <text x={point.x + 16} y={point.y + 5}>{label.slice(0, 30)}</text>
                     )}
                   </g>
@@ -1840,7 +3007,27 @@ function EvidenceGraphExplorer({
           <EmptyPanel icon={<GitBranch />} title={copy.graph.emptyTitle} text={copy.graph.emptyText} />
         )}
       </div>
+      <GraphLegend copy={copy} visibleNodeCount={visibleNodes.length} visibleEdgeCount={visibleEdges.length} />
     </section>
+  );
+}
+
+function GraphLegend({ copy, visibleNodeCount, visibleEdgeCount }: { copy: Copy; visibleNodeCount: number; visibleEdgeCount: number }) {
+  const items = [
+    ["candidate", copyText(copy, "graph", "legendCandidate", "candidate")],
+    ["model_prediction", copyText(copy, "graph", "legendPrediction", "prediction")],
+    ["threshold", copyText(copy, "graph", "legendThreshold", "threshold")],
+    ["decision", copyText(copy, "graph", "legendDecision", "decision")],
+    ["class_risk", copyText(copy, "graph", "legendRisk", "risk context")]
+  ];
+  return (
+    <div className="graph-legend">
+      <strong>{copyText(copy, "graph", "legend", "Graph legend")}</strong>
+      {items.map(([type, label]) => (
+        <span key={type}><i className={`legend-dot ${type}`} />{label}</span>
+      ))}
+      <em>{visibleNodeCount} nodes / {visibleEdgeCount} edges</em>
+    </div>
   );
 }
 
@@ -1859,6 +3046,22 @@ function KnownDrugsAndRisks({
   copy: Copy;
   locale: Locale;
 }) {
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleReferenceDrugs = referenceDrugs.filter((drug) => {
+    if (!normalizedQuery) return true;
+    return [
+      drug.name,
+      drug.smiles,
+      drug.chembl_id,
+      drug.pubchem_cid,
+      drug.category,
+      drug.context,
+      drug.activity_evidence,
+      drug.source_status,
+      ...drug.label_risk_context
+    ].join(" ").toLowerCase().includes(normalizedQuery);
+  });
   return (
     <section className="view-frame known-view">
       <div className="section-header">
@@ -1871,16 +3074,29 @@ function KnownDrugsAndRisks({
         <AlertTriangle size={20} />
         <p>{copy.known.banner}</p>
       </div>
+      <div className="known-search-strip">
+        <label>
+          <Search size={15} />
+          <input
+            value={query}
+            placeholder={copyText(copy, "known", "searchPlaceholder", "Search drug, risk, ChEMBL, PubChem, or source")}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <span>{visibleReferenceDrugs.length} / {referenceDrugs.length}</span>
+      </div>
       <div className="known-grid">
         <section className="known-drug-table">
-          {referenceDrugs.map((drug) => (
+          {visibleReferenceDrugs.map((drug) => (
             <article className="known-drug-card" key={drug.drug_id}>
               <div className="known-drug-figure">
-                {drug.structure_svg || drug.structure_image_url ? (
-                  <img src={(drug.structure_svg || drug.structure_image_url) ?? undefined} alt={`${drug.name} structure`} />
-                ) : (
-                  <span>{copy.known.noStructure}</span>
-                )}
+                <StructureImage
+                  src={drug.structure_svg || drug.structure_image_url}
+                  alt={`${drug.name} structure`}
+                  smiles={drug.smiles}
+                  fallback={copy.known.noStructure}
+                  initialStatus={drug.structure_svg || drug.structure_image_url ? "rendered" : "fallback"}
+                />
               </div>
               <div>
                 <p className="eyebrow">
@@ -1918,9 +3134,116 @@ function KnownDrugsAndRisks({
   );
 }
 
+function ReportPreRunPanel({ copy }: { copy: Copy }) {
+  const outputs = [
+    [copy.reports.modelCard, copyText(copy, "reports", "modelCardPreview", "QSAR context, validation status, and interpretation limits.")],
+    [copy.reports.thresholdRegistry, copyText(copy, "reports", "thresholdPreview", "Every gate keeps its value, source, direction, and rationale.")],
+    [copy.reports.agentTrace, copyText(copy, "reports", "tracePreview", "Plan, tool calls, critic review, redesign, and fallback events.")],
+    [copy.reports.libraryScreening, copyText(copy, "reports", "libraryPreview", "Raw input, unique valid molecules, detailed evaluation, rendered structures.")]
+  ];
+  return (
+    <section className="report-pre-run">
+      <div>
+        <p className="eyebrow">{copyText(copy, "reports", "beforeRun", "Before a run")}</p>
+        <h3>{copyText(copy, "reports", "preRunTitle", "Reports become the audit trail, not a marketing summary.")}</h3>
+        <p>{copyText(copy, "reports", "preRunBody", "After triage, this tab collects evidence mode, tool failures, decision rules, validation, cache status, and downloadable HTML output.")}</p>
+      </div>
+      <div>
+        {outputs.map(([title, text]) => (
+          <article key={title}>
+            <CheckCircle2 size={16} />
+            <strong>{title}</strong>
+            <span>{text}</span>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AgentFlowDiagram({ result, copy, locale }: { result: PipelineResult | null; copy: Copy; locale: Locale }) {
+  const summary = result?.agent_trace_summary;
+  const nodes = summary?.flow_nodes ?? [];
+  const [selectedId, setSelectedId] = useState<string>(nodes[0]?.id ?? "");
+  const activeNode = nodes.find((node) => node.id === selectedId) ?? nodes[0];
+  const eventSteps = new Set((activeNode?.event_steps ?? []).map((step) => Number(step)));
+  const relatedEvents = (result?.agent_events ?? []).filter((event) => eventSteps.has(Number(event.step)));
+
+  if (!result || !summary || !nodes.length) {
+    return (
+      <div className="agent-flow-empty">
+        <Network size={18} />
+        <p>{copyText(copy, "reports", "agentFlowPending", "Run triage to generate a readable agent flow diagram.")}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="agent-flow-shell">
+      <div className="plain-agent-summary">
+        <h4>{copyText(copy, "reports", "plainAgentSummary", "Plain-language agent summary")}</h4>
+        <ul>
+          {(summary.plain_summary ?? []).slice(0, 4).map((item) => (
+            <li key={item}>{localizeBackendText(item, locale)}</li>
+          ))}
+        </ul>
+      </div>
+      <div className="agent-flow-diagram" role="list" aria-label={copyText(copy, "reports", "agentFlowDiagram", "Agent Flow Diagram")}>
+        {nodes.map((node, index) => (
+          <button
+            className={`agent-flow-node ${flowStatusClass(node.status)} ${activeNode?.id === node.id ? "selected" : ""}`}
+            key={node.id}
+            onClick={() => setSelectedId(node.id)}
+            type="button"
+          >
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <strong>{localizeFlowLabel(node.label, locale)}</strong>
+            <em>{copyText(copy, "reports", String(node.status), String(node.status))}</em>
+          </button>
+        ))}
+      </div>
+      <div className="agent-flow-detail">
+        <div>
+          <span className={`flow-status-pill ${flowStatusClass(activeNode?.status)}`}>
+            {copyText(copy, "reports", String(activeNode?.status ?? "review"), String(activeNode?.status ?? "review"))}
+          </span>
+          <h4>{localizeFlowLabel(activeNode?.label ?? "", locale)}</h4>
+          <p>{localizeBackendText(String(activeNode?.summary ?? ""), locale)}</p>
+        </div>
+        <dl>
+          <dt>{copyText(copy, "reports", "fallbackEvents", "Fallback events")}</dt>
+          <dd>{summary.fallback_events_count}</dd>
+          <dt>{copyText(copy, "reports", "criticFindings", "Critic findings")}</dt>
+          <dd>{summary.critic_findings_count}</dd>
+          <dt>{copyText(copy, "reports", "relatedEvents", "Related raw events")}</dt>
+          <dd>{relatedEvents.length}</dd>
+        </dl>
+      </div>
+      <div className="decision-impact">
+        <h4>{copyText(copy, "reports", "whatChangedDecision", "What changed the decision")}</h4>
+        <p>{localizeBackendText(summary.decision_impact, locale)}</p>
+      </div>
+      <details className="technical-trace">
+        <summary>{copyText(copy, "reports", "technicalTrace", "Technical trace")}</summary>
+        <ol className="trace-list">
+          {result.agent_events.length ? result.agent_events.map((event) => (
+            <li key={`${event.step}-${event.phase}-${event.action}`}>
+              <strong>{event.step}. {event.phase}</strong>
+              <span>{event.agent} / {event.action} / {event.status}</span>
+              {event.candidate_id && <em>{event.candidate_id}</em>}
+            </li>
+          )) : <li>{copy.reports.pendingTrace}</li>}
+        </ol>
+      </details>
+    </div>
+  );
+}
+
 function Reports({ result, copy, locale }: { result: PipelineResult | null; copy: Copy; locale: Locale }) {
   const toolSummary = result?.tool_error_summary;
   const categories = Object.entries(toolSummary?.categories ?? {});
+  const cacheRuntime = result?.cache_summary?.runtime as Record<string, unknown> | undefined;
+  const circuitOpen = result?.api_circuit_breaker_summary?.open_sources as Record<string, unknown> | undefined;
   return (
     <section className="view-frame reports-view">
       <div className="section-header">
@@ -1935,14 +3258,19 @@ function Reports({ result, copy, locale }: { result: PipelineResult | null; copy
           </a>
         )}
       </div>
+      {!result && <ReportPreRunPanel copy={copy} />}
       <div className="reports-grid">
+        <section className="report-panel agent-flow-panel">
+          <h3>{copyText(copy, "reports", "agentFlowDiagram", "Agent Flow Diagram")}</h3>
+          <AgentFlowDiagram result={result} copy={copy} locale={locale} />
+        </section>
         <section className="report-panel">
           <h3>{copy.reports.evidenceMode}</h3>
           <dl className="model-dl">
             <dt>{copy.reports.status}</dt>
             <dd>{evidenceModeLabel(result, DEFAULT_REQUEST, copy)}</dd>
             <dt>{copy.reports.sourceRequired}</dt>
-            <dd>{String(result?.evidence_mode?.interpretation ?? "-")}</dd>
+            <dd>{String(result?.evidence_mode?.interpretation ?? copyText(copy, "reports", "preRunEvidenceNote", "Run triage to populate source-backed evidence mode and fallback status."))}</dd>
           </dl>
         </section>
         <section className="report-panel">
@@ -1961,10 +3289,64 @@ function Reports({ result, copy, locale }: { result: PipelineResult | null; copy
             <dt>{copy.reports.status}</dt>
             <dd>{toolSummary?.has_live_errors ? copyText(copy, "console", "fallback", "fallback") : copyText(copy, "console", "available", "available")}</dd>
             <dt>{copy.reports.sourceRequired}</dt>
-            <dd>{String(toolSummary?.interpretation ?? "-")}</dd>
+            <dd>{String(toolSummary?.interpretation ?? copyText(copy, "reports", "preRunToolNote", "Tool calls and fallback categories will appear after a run."))}</dd>
           </dl>
           <div className="metric-list">
             {categories.map(([key, value]) => <span key={key}>{key}: {value}</span>)}
+          </div>
+        </section>
+        <section className="report-panel">
+          <h3>{copyText(copy, "reports", "runtimeOps", "Runtime / cache")}</h3>
+          <dl className="model-dl">
+            <dt>{copyText(copy, "console", "performance", "Performance")}</dt>
+            <dd>{result?.performance_summary?.duration_ms ? `${Math.round(Number(result.performance_summary.duration_ms))} ms` : "-"}</dd>
+            <dt>{copyText(copy, "reports", "cache", "Cache")}</dt>
+            <dd>{formatInteger(result?.cache_summary?.entries)} entries / {formatInteger(cacheRuntime?.hits)} hits / {formatInteger(cacheRuntime?.misses)} misses</dd>
+            <dt>{copyText(copy, "console", "circuitBreaker", "Circuit breaker")}</dt>
+            <dd>{Object.keys(circuitOpen ?? {}).length} open sources</dd>
+          </dl>
+          <p className="context-note">{String(result?.api_circuit_breaker_summary?.policy ?? "-")}</p>
+        </section>
+        <section className="report-panel">
+          <h3>{copyText(copy, "reports", "targetReadiness", "Target readiness")}</h3>
+          <dl className="model-dl">
+            <dt>{copy.reports.status}</dt>
+            <dd>{String(result?.target_readiness?.status ?? copy.console.runPending)}</dd>
+            <dt>{copyText(copy, "reports", "scoringMode", "Scoring mode")}</dt>
+            <dd>{String(result?.scoring_mode ?? "-")}</dd>
+            <dt>{copyText(copy, "reports", "pchemblRows", "pChEMBL rows")}</dt>
+            <dd>{String(result?.target_readiness?.pchembl_rows ?? "-")}</dd>
+            <dt>{copy.reports.sourceRequired}</dt>
+            <dd>{String(result?.target_readiness?.interpretation ?? "-")}</dd>
+          </dl>
+          <div className="metric-list">
+            {((result?.target_readiness?.blockers as string[] | undefined) ?? []).map((item) => <span key={item}>{item}</span>)}
+          </div>
+        </section>
+        <section className="report-panel">
+          <h3>{copyText(copy, "reports", "scientificExtensions", "Scientific extensions")}</h3>
+          <dl className="model-dl">
+            <dt>{copyText(copy, "reports", "assayRecommendations", "Assay recommendations")}</dt>
+            <dd>{String(result?.assay_plan?.recommendation_count ?? 0)}</dd>
+            <dt>{copyText(copy, "reports", "activityCliffs", "Activity cliff pairs")}</dt>
+            <dd>{String(result?.activity_cliff_report?.pair_count ?? 0)}</dd>
+            <dt>{copy.reports.status}</dt>
+            <dd>{String(result?.scientific_extensions?.target_readiness_status ?? "-")}</dd>
+          </dl>
+          <p className="context-note">{String(result?.scientific_extensions?.novelty_positioning ?? "-")}</p>
+        </section>
+        <section className="report-panel">
+          <h3>{copyText(copy, "reports", "errorSummary", "Error / exception summary")}</h3>
+          <dl className="model-dl">
+            <dt>{copyText(copy, "reports", "totalErrors", "Total errors")}</dt>
+            <dd>{String(result?.error_summary?.total_errors ?? 0)}</dd>
+            <dt>{copyText(copy, "reports", "blocking", "Blocking")}</dt>
+            <dd>{String(Boolean(result?.error_summary?.has_blocking_error))}</dd>
+            <dt>{copyText(copy, "reports", "logPath", "Log path")}</dt>
+            <dd>{String(result?.log_path ?? "-")}</dd>
+          </dl>
+          <div className="metric-list">
+            {Object.entries(result?.error_summary?.categories ?? {}).map(([key, value]) => <span key={key}>{key}: {String(value)}</span>)}
           </div>
         </section>
         <section className="report-panel">
@@ -2039,18 +3421,6 @@ function Reports({ result, copy, locale }: { result: PipelineResult | null; copy
               </div>
             ))}
           </div>
-        </section>
-        <section className="report-panel">
-          <h3>{copy.reports.agentTrace}</h3>
-          <ol className="trace-list">
-            {result?.agent_events?.length ? result.agent_events.map((event) => (
-              <li key={`${event.step}-${event.phase}-${event.action}`}>
-                <strong>{event.step}. {event.phase}</strong>
-                <span>{event.agent} / {event.action} / {event.status}</span>
-                {event.candidate_id && <em>{event.candidate_id}</em>}
-              </li>
-            )) : <li>{copy.reports.pendingTrace}</li>}
-          </ol>
         </section>
       </div>
     </section>
@@ -2239,14 +3609,255 @@ function statusClass(status: Status | string) {
   return "status-hold";
 }
 
-function formatNumber(value: number | null | undefined, digits = 2) {
-  if (typeof value !== "number" || Number.isNaN(value)) return "-";
-  return value.toFixed(digits);
+function flowStatusClass(status: string | undefined) {
+  const normalized = String(status ?? "review").toLowerCase();
+  if (normalized === "done" || normalized === "pass") return "flow-done";
+  if (normalized === "blocked" || normalized === "block") return "flow-blocked";
+  if (normalized === "fallback") return "flow-fallback";
+  return "flow-review";
 }
 
-function formatInteger(value: number | null | undefined) {
-  if (typeof value !== "number" || Number.isNaN(value)) return "-";
-  return Math.round(value).toLocaleString();
+function localizeFlowLabel(label: string, locale: Locale) {
+  if (locale !== "ko") return label;
+  const labels: Record<string, string> = {
+    "Valid SMILES": "SMILES 유효성",
+    "Structural alerts": "구조 alert",
+    "Descriptor gates": "물성 gate",
+    "Conservative activity": "보수적 활성 추정",
+    "Applicability domain": "적용영역",
+    "Prediction uncertainty": "예측 불확실성",
+    "Evidence support": "근거 충분성",
+    "Critic review": "Critic 검토",
+    "Redesign context": "재설계 맥락",
+    "Final decision": "최종 판정",
+    "Plan": "계획 생성",
+    "Evidence search": "근거 검색",
+    "Library build": "라이브러리 구성",
+    "Molecular evaluation": "분자 평가",
+    "QSAR / AD": "QSAR / 적용영역",
+    "Replan / Redesign": "재계획 / 재설계",
+    "Decision": "판정",
+    "Report": "보고서"
+  };
+  return labels[label] ?? label;
+}
+
+function EvidenceWave() {
+  return (
+    <div className="evidence-wave" aria-hidden="true">
+      {Array.from({ length: 30 }).map((_, index) => {
+        const top = index % 3 === 0 ? 38 : index % 3 === 1 ? 56 : 48;
+        return (
+          <span
+            key={index}
+            style={{
+              left: `${-4 + index * 3.8}%`,
+              top: `${top}%`,
+              transform: `rotate(${index * 8}deg)`
+            } as CSSProperties}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function MetricNumber({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <article>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </article>
+  );
+}
+
+function AgentLoopTimeline({ result }: { result: PipelineResult }) {
+  const phases = ["Plan", "Act", "Observe", "Critique", "Replan", "Redesign", "Re-evaluate", "Decide"];
+  const phaseCounts = result.agent_events.reduce<Record<string, number>>((acc, event) => {
+    const phase = String(event.phase ?? "");
+    acc[phase] = (acc[phase] ?? 0) + 1;
+    return acc;
+  }, {});
+  return (
+    <ol className="agent-loop-timeline">
+      {phases.map((phase, index) => (
+        <li className={phaseCounts[phase] ? "active" : ""} key={phase}>
+          <span>{String(index + 1).padStart(2, "0")}</span>
+          <strong>{phase}</strong>
+          <em>{phaseCounts[phase] ?? 0}</em>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function CandidateStoryCard({
+  story,
+  copy,
+  locale,
+  onOpenCandidate
+}: {
+  story: ReturnType<typeof candidateDecisionStory>;
+  copy: Copy;
+  locale: Locale;
+  onOpenCandidate: (id: string, view?: ViewId) => void;
+}) {
+  const candidate = story.candidate;
+  return (
+    <article className={`candidate-story ${statusClass(story.status)}`}>
+      <span className={`mini-status ${statusClass(story.status)}`}>{statusLabel(story.status, copy)}</span>
+      {candidate ? (
+        <>
+          <div className="story-figure">
+            <LazyStructureImage candidate={candidate} fallback={copy.atlas.noStructure} />
+          </div>
+          <h4>{candidate.candidate_id}</h4>
+          <p>{localizeBackendText(story.reason, locale)}</p>
+          <dl>
+            <dt>{copy.atlas.lowerPchembl}</dt>
+            <dd>{formatNumber(candidate.prediction_interval?.lower, 2)}</dd>
+            <dt>AD</dt>
+            <dd>{formatNumber(candidate.applicability_score, 2)}</dd>
+            <dt>Gate</dt>
+            <dd>{topGateEffect(candidate)}</dd>
+          </dl>
+          <button className="ghost-action compact" onClick={() => onOpenCandidate(candidate.candidate_id, "twin")} type="button">
+            {copyText(copy, "judge", "openStory", "Open candidate twin")}
+          </button>
+        </>
+      ) : (
+        <>
+          <h4>{copyText(copy, "judge", "missingStory", "No representative in this run")}</h4>
+          <p>{story.reason}</p>
+        </>
+      )}
+    </article>
+  );
+}
+
+function buildGuidedRunSummary(result: PipelineResult | null, copy: Copy) {
+  if (!result) {
+    return {
+      title: copyText(copy, "console", "guidedPreRunTitle", "Evidence-gated setup, not a black-box chat."),
+      firstInspection: copyText(copy, "console", "guidedPreRunInspection", "After the run, open the first Hold or No-Go candidate to see uncertainty and blockers."),
+      whatHappened: "-",
+      whyHold: "-",
+      needsValidation: "-"
+    };
+  }
+  const counts = result.evaluation_report?.status_counts ?? { Go: 0, Hold: 0, "No-Go": 0, Unscored: 0 };
+  const firstHold = result.candidates.find((candidate) => candidate.decision?.final_status === "Hold");
+  const firstNoGo = result.candidates.find((candidate) => candidate.decision?.final_status === "No-Go");
+  const firstGo = result.candidates.find((candidate) => candidate.decision?.final_status === "Go");
+  const first = firstHold ?? firstNoGo ?? firstGo ?? result.candidates[0];
+  return {
+    title: copyText(copy, "console", "guidedPostRunTitle", "Follow the evidence flow before trusting a candidate."),
+    firstInspection: first
+      ? copyText(copy, "console", "guidedInspectCandidate", "Inspect {candidate}: {hint}")
+          .replace("{candidate}", first.candidate_id)
+          .replace("{hint}", inspectionHint(first, copy))
+      : copyText(copy, "console", "guidedNoCandidate", "Run triage to create a first inspection target."),
+    whatHappened: copyText(copy, "console", "guidedWhatHappenedValue", "{unique} valid unique molecules became {detailed} detailed evaluations.")
+      .replace("{unique}", formatInteger(result.library_report?.valid_unique_count))
+      .replace("{detailed}", formatInteger(result.library_report?.detailed_evaluation_count)),
+    whyHold: copyText(copy, "console", "guidedWhyHoldValue", "{hold} candidates need evidence, AD, uncertainty, or risk review.")
+      .replace("{hold}", formatInteger(counts.Hold ?? 0)),
+    needsValidation: result.validation_report?.status === "sufficient_data"
+      ? copyText(copy, "console", "guidedValidationSufficient", "Use validation metrics and assay follow-up.")
+      : copyText(copy, "console", "guidedValidationLimited", "Validation data are limited; confirm with assay and expert review.")
+  };
+}
+
+function buildJudgeDemoSummary(result: PipelineResult | null, counts: Record<Status, number>, copy: Copy) {
+  const eventCount = result?.agent_events?.length ?? 0;
+  const runtimeLabel = result?.compute_profile?.id ? String(result.compute_profile.id) : result?.runtime_status ? copyText(copy, "judge", "runtimeReported", "reported") : copyText(copy, "judge", "runtimePending", "pending");
+  const runtimeDetail = result?.tool_error_summary?.has_live_errors ? copyText(copy, "judge", "runtimeFallback", "fallback labelled") : copyText(copy, "judge", "runtimeLogged", "resources logged");
+  const criteriaMap = [
+    { label: copyText(copy, "judge", "criteriaScientific", "Scientific validity"), evidence: copyText(copy, "judge", "criteriaScientificEvidence", "Gate audit, threshold registry, QSAR validation status") },
+    { label: copyText(copy, "judge", "criteriaAgentic", "Agent autonomy"), evidence: copyText(copy, "judge", "criteriaAgenticEvidence", "Plan/Act/Observe/Critique/Replan/Redesign timeline") },
+    { label: copyText(copy, "judge", "criteriaTools", "Tool integration"), evidence: copyText(copy, "judge", "criteriaToolsEvidence", "RDKit, ChEMBL/PubChem/openFDA logs, evidence graph") },
+    { label: copyText(copy, "judge", "criteriaResource", "Resource efficiency"), evidence: copyText(copy, "judge", "criteriaResourceEvidence", "CPU/GPU/API requested vs used runtime truth") },
+    { label: copyText(copy, "judge", "criteriaDemo", "Demo completeness"), evidence: copyText(copy, "judge", "criteriaDemoEvidence", "Candidate twin, report, known risk context, next validation") }
+  ];
+  return {
+    eventCount,
+    runtimeLabel,
+    runtimeDetail,
+    criteriaMap,
+    stories: [
+      candidateDecisionStory(result, "Go", copy, counts),
+      candidateDecisionStory(result, "Hold", copy, counts),
+      candidateDecisionStory(result, "No-Go", copy, counts)
+    ]
+  };
+}
+
+function candidateDecisionStory(result: PipelineResult | null, status: Status, copy: Copy, counts?: Record<Status, number>) {
+  const candidate = result?.candidates.find((item) => item.decision?.final_status === status) ?? null;
+  if (!candidate) {
+    return {
+      status,
+      candidate: null,
+      reason: copyText(copy, "judge", "storyMissingReason", "This run has {count} {status} candidates.")
+        .replace("{count}", formatInteger(counts?.[status] ?? 0))
+        .replace("{status}", statusLabel(status, copy))
+    };
+  }
+  const primaryReason = candidate.decision?.reasons?.[0] ?? inspectionHint(candidate, copy);
+  return { status, candidate, reason: primaryReason };
+}
+
+function topGateEffect(candidate: Candidate) {
+  const gates = candidate.decision?.gate_audit ?? [];
+  const blocker = gates.find((gate) => gate.status === "block");
+  const review = gates.find((gate) => gate.status === "review");
+  const pass = gates.find((gate) => gate.status === "pass");
+  return blocker?.label ?? review?.label ?? pass?.label ?? "-";
+}
+
+function inspectionHint(candidate: Candidate, copy: Copy) {
+  const status = candidate.decision?.final_status ?? "Unscored";
+  const severe = candidate.descriptors?.severe_alerts?.length ?? 0;
+  const alerts = candidate.descriptors?.alerts?.length ?? 0;
+  if (status === "No-Go") {
+    return severe
+      ? copyText(copy, "console", "hintSevereAlert", "hard blocker: severe structural alert")
+      : copyText(copy, "console", "hintHardBlocker", "hard blocker or invalid structure");
+  }
+  if (status === "Hold") {
+    if (!candidate.in_applicability_domain) return copyText(copy, "console", "hintAdReview", "review AD before prioritization");
+    if ((candidate.prediction_interval?.width ?? 0) > 1.2) return copyText(copy, "console", "hintWideUncertainty", "wide uncertainty interval");
+    if (alerts) return copyText(copy, "console", "hintRiskAlert", "risk alert needs review");
+    return copyText(copy, "console", "hintMoreEvidence", "needs more evidence before prioritization");
+  }
+  if (status === "Go") return copyText(copy, "console", "hintGoValidation", "passes hard gates; still needs assay validation");
+  return copyText(copy, "console", "hintUnscored", "not scored yet");
+}
+
+function fallbackViewLabel(id: string) {
+  const labels: Record<string, string> = {
+    console: "Run Console",
+    judge: "Judge Demo",
+    atlas: "Library Browser",
+    twin: "Candidate Twin",
+    graph: "Evidence Graph",
+    known: "Known Drugs & Risks",
+    reports: "Reports"
+  };
+  return labels[id] ?? id;
+}
+
+function formatNumber(value: unknown, digits = 2) {
+  const numeric = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  if (!Number.isFinite(numeric)) return "-";
+  return numeric.toFixed(digits);
+}
+
+function formatInteger(value: unknown) {
+  const numeric = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  if (!Number.isFinite(numeric)) return "-";
+  return Math.round(numeric).toLocaleString();
 }
 
 function formatGateValue(value: unknown) {
@@ -2264,6 +3875,38 @@ function copyText(copy: Copy, section: string, key: string, fallback: string) {
   const sectionMap = (copy as unknown as Record<string, Record<string, unknown>>)[section] ?? {};
   const value = sectionMap[key];
   return typeof value === "string" ? value : fallback;
+}
+
+function loadSavedMolecules(): SavedMolecule[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem("targetsafe-saved-molecules") ?? "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item) => item && typeof item.smiles === "string")
+      .slice(0, 24)
+      .map((item) => ({
+        id: String(item.id ?? `${Date.now()}-${item.smiles}`),
+        name: String(item.name ?? "Untitled molecule"),
+        smiles: String(item.smiles),
+        target: String(item.target ?? "EGFR"),
+        viability: String(item.viability ?? "review"),
+        saved_at: String(item.saved_at ?? ""),
+        structure_svg: typeof item.structure_svg === "string" ? item.structure_svg : null
+      }));
+  } catch {
+    return [];
+  }
+}
+
+function moleculeViabilityLabel(viability: string, copy: Copy) {
+  const labels: Record<string, string> = {
+    plausible_seed: copyText(copy, "console", "viabilityPlausible", "Plausible seed"),
+    review: copyText(copy, "console", "viabilityReview", "Needs review"),
+    blocked: copyText(copy, "console", "viabilityBlocked", "Blocked"),
+    invalid: copyText(copy, "console", "viabilityInvalid", "Invalid")
+  };
+  return labels[viability] ?? viability;
 }
 
 function librarySourceLabel(source: string, copy: Copy) {
@@ -2316,4 +3959,18 @@ function evidenceModeLabel(result: PipelineResult | null, request: RunRequest, c
     return copy.console.evidenceModes[mode as keyof typeof copy.console.evidenceModes] ?? result?.evidence_mode?.label ?? mode;
   }
   return request.allow_network ? copy.console.liveEnabled : copy.console.cachedDemo;
+}
+
+function targetReadinessLabel(result: PipelineResult | null) {
+  if (!result) return "pending";
+  const mode = result.scoring_mode || String(result.target_readiness?.scoring_mode ?? "unknown");
+  const status = String(result.target_readiness?.status ?? "unknown");
+  return `${mode} / ${status}`;
+}
+
+function scenarioClass(mode?: string) {
+  const normalized = String(mode ?? "").toLowerCase().replace(/_/g, "-");
+  if (normalized.includes("scored")) return "scored";
+  if (normalized.includes("stress")) return "stress";
+  return "evidence";
 }

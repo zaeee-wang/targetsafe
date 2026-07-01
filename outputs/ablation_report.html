@@ -14,11 +14,12 @@
   <p>This report compares decision-support layers. It is not an efficacy or safety claim.</p>
   <h2>Summary</h2>
   <pre>{
-  "run_id": "targetsafe_1782823135",
+  "run_id": "targetsafe_1782898715565",
   "current_system": "graph-grounded, threshold-sourced, critic-reviewed triage",
   "status_counts": {
-    "Hold": 61,
-    "No-Go": 2
+    "Go": 10,
+    "Hold": 129,
+    "No-Go": 18
   },
   "critic_enabled": true,
   "llm_role": "optional planner/report summarizer; not final decision maker",
@@ -28,13 +29,15 @@
     "applicability-domain check",
     "threshold registry provenance",
     "evidence graph support",
-    "critic review"
+    "critic review",
+    "critic-triggered constrained redesign loop"
   ],
   "planned_comparisons": [
     "rule-only vs model-backed decision",
     "critic off vs critic on",
     "LLM-only explanation vs graph-grounded explanation",
-    "CPU-only vs optional GPU retrieval/ensemble"
+    "CPU-only vs optional GPU retrieval/ensemble",
+    "parent candidate vs critic redesign child"
   ]
 }</pre>
 </body>

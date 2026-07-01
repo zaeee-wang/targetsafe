@@ -63,6 +63,10 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
     llm = (result.runtime_status or {}).get("llm", {})
     library = result.library_report or {}
     tool_errors = result.tool_error_summary or {}
+    readiness = result.target_readiness or {}
+    assay_plan = result.assay_plan or {}
+    cliff_report = result.activity_cliff_report or {}
+    error_summary = result.error_summary or {}
     top_candidates = [candidate for candidate in result.candidates if candidate.decision][:8]
     top_cards = []
     for candidate in top_candidates:
@@ -79,6 +83,18 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
             f"<dt>Applicability</dt><dd>{candidate.applicability_score:.3f}</dd></dl>"
             "</div>"
         )
+    trace_summary = result.agent_trace_summary or {}
+    plain_summary = trace_summary.get("plain_summary", [])
+    flow_cards = []
+    for node in trace_summary.get("flow_nodes", []):
+        flow_cards.append(
+            "<div class='flow-node'>"
+            f"<span class='badge status-{html_escape(node.get('status', 'review'))}'>{html_escape(node.get('status', 'review'))}</span>"
+            f"<b>{html_escape(node.get('label', ''))}</b>"
+            f"<p>{html_escape(node.get('summary', ''))}</p>"
+            "</div>"
+        )
+    technical_trace = json.dumps([event.to_dict() for event in result.agent_events], indent=2)
 
     html = f"""<!doctype html>
 <html lang="en">
@@ -109,6 +125,15 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
     .candidate-card dl {{ display: grid; grid-template-columns: 90px 1fr; gap: 4px 8px; font-size: 12px; }}
     details {{ margin-top: 20px; border: 1px solid #d8dee9; border-radius: 12px; background: #fff; padding: 12px; }}
     summary {{ cursor: pointer; font-weight: 700; }}
+    pre {{ white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }}
+    .flow-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }}
+    .flow-node {{ border: 1px solid #d8dee9; border-radius: 12px; padding: 12px; background: #fff; min-width: 0; }}
+    .flow-node b {{ display: block; margin: 8px 0 6px; }}
+    .flow-node p {{ color: #42526e; font-size: 13px; line-height: 1.5; }}
+    .status-done {{ background: #ecfdf5; color: #047857; }}
+    .status-review {{ background: #fffbeb; color: #92400e; }}
+    .status-fallback {{ background: #fff7ed; color: #9a3412; }}
+    .status-blocked {{ background: #fef2f2; color: #b91c1c; }}
     @media (max-width: 900px) {{ .hero, .grid, .truth-table, .candidate-grid {{ grid-template-columns: 1fr; }} main {{ padding: 18px; }} }}
   </style>
 </head>
@@ -116,6 +141,12 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
 <main>
   <h1>Target-SAFE Lead Triage Report</h1>
   <section class="box">
+    <h2>한글 요약</h2>
+    <p>Target-SAFE는 AI가 신약 효능이나 안전성을 확정한다고 주장하지 않습니다. 이 보고서는 초기 리드 후보를 구조 유효성, 물성 hard gate, QSAR 적용영역, 예측 불확실성, 외부 근거, Critic Agent 검토를 기준으로 <b>Go / Hold / No-Go</b>로 좁히는 근거 기반 의사결정 보조 산출물입니다.</p>
+    <p><b>No-Go</b>는 invalid SMILES, severe alert, 극단적 descriptor blocker처럼 즉시 중단해야 하는 경우입니다. <b>Hold</b>는 분자는 유효하지만 activity, applicability domain, uncertainty, evidence confidence, API fallback 중 하나 이상이 부족해 추가 검증이 필요한 경우입니다. <b>Go</b>는 hard blocker가 없고 주요 gate가 모두 통과된 경우에만 부여되며, 여전히 실험 검증이 필요합니다.</p>
+    <p>이번 버전은 단순 후보 랭킹을 넘어, 타깃별 evidence readiness, activity cliff risk, 다음 assay 추천, API/GPU/LLM fallback 로그를 함께 기록합니다.</p>
+  </section>
+  <section class="box" style="display:none">
     <h2>한글 요약</h2>
     <p>Target-SAFE는 후보물질을 임상적으로 유효하거나 안전하다고 선언하는 시스템이 아니라, 초기 리드 후보를 구조 유효성, 물성 hard gate, QSAR 적용영역, 예측 불확실성, 외부 근거, Critic Agent 검토 기준으로 <b>Go / Hold / No-Go</b>로 좁히는 근거 기반 의사결정 보조 시스템입니다.</p>
     <p><b>No-Go</b>는 invalid SMILES, severe alert, 극단적 descriptor blocker처럼 즉시 중단해야 하는 경우입니다. <b>Hold</b>는 분자는 유효하지만 activity, applicability domain, uncertainty, evidence confidence, API fallback 중 하나 이상이 부족하여 추가 검증이 필요한 경우입니다. <b>Go</b>는 hard blocker가 없고 주요 gate가 모두 통과한 경우에만 붙습니다.</p>
@@ -141,6 +172,7 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
     <div class="box"><b>Evidence mode</b><br><span class="badge">{html_escape((result.evidence_mode or {}).get("label", ""))}</span><br>{html_escape((result.evidence_mode or {}).get("interpretation", ""))}</div>
     <div class="box"><b>Validation status</b><br><span class="badge">{html_escape((result.validation_report or {}).get("status", ""))}</span><br>{html_escape((result.validation_report or {}).get("interpretation", ""))}</div>
     <div class="box"><b>Redesign loop</b><br>{html_escape((result.redesign_report or {}).get("created_children", 0))} child suggestions</div>
+    <div class="box"><b>Scoring mode</b><br>{html_escape(result.scoring_mode)}<br>{html_escape(readiness.get("interpretation", ""))}</div>
     <div class="box"><b>Runtime status</b><br>{html_escape((result.runtime_status or {}).get("gpu", {}).get("message", ""))}<br>{html_escape((result.runtime_status or {}).get("llm", {}).get("message", ""))}</div>
     <div class="box"><b>Library scale</b><br>{html_escape((result.library_report or {}).get("valid_unique_count", 0))} valid unique / {html_escape((result.library_report or {}).get("detailed_evaluation_count", 0))} detailed</div>
     <div class="box"><b>Screening stages</b><br>{html_escape(result.screening_stages)}</div>
@@ -162,6 +194,15 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
     <div class="box"><b>Total tool calls</b><br>{html_escape(tool_errors.get("total_calls", 0))}</div>
     <div class="box"><b>Error categories</b><br>{html_escape(tool_errors.get("categories", {}))}</div>
     <div class="box"><b>Interpretation</b><br>{html_escape(tool_errors.get("interpretation", ""))}</div>
+  </div>
+  <h2>Scientific Extensions</h2>
+  <div class="grid">
+    <div class="box"><b>Target readiness</b><br>{html_escape(readiness.get("status", ""))}<br>{html_escape(readiness.get("blockers", []))}</div>
+    <div class="box"><b>Assay Planner</b><br>{html_escape(assay_plan.get("recommendation_count", 0))} recommendations<br>{html_escape(assay_plan.get("interpretation", ""))}</div>
+    <div class="box"><b>Activity Cliff Radar</b><br>{html_escape(cliff_report.get("pair_count", 0))} candidate pairs<br>{html_escape(cliff_report.get("interpretation", ""))}</div>
+    <div class="box"><b>Error observability</b><br>{html_escape(error_summary.get("total_errors", 0))} recorded errors<br>{html_escape(error_summary.get("interpretation", ""))}</div>
+    <div class="box"><b>Structured log</b><br>{html_escape(result.log_path or "-")}</div>
+    <div class="box"><b>Novelty positioning</b><br>{html_escape((result.scientific_extensions or {}).get("novelty_positioning", ""))}</div>
   </div>
   <h2>Library-Scale Screening</h2>
   <div class="grid">
@@ -186,8 +227,17 @@ def write_html_report(result: PipelineResult, output_dir: str | Path = "outputs"
   </div>
   <h2>Top Candidate Readout</h2>
   <div class="candidate-grid">{''.join(top_cards)}</div>
-  <h2>Agentic Trace</h2>
-  <pre>{html_escape(json.dumps([event.to_dict() for event in result.agent_events], indent=2))}</pre>
+  <h2>Plain-Language Agent Summary</h2>
+  <div class="box">
+    <ul>{''.join(f'<li>{html_escape(item)}</li>' for item in plain_summary)}</ul>
+    <p><b>Decision impact:</b> {html_escape(trace_summary.get("decision_impact", ""))}</p>
+  </div>
+  <h2>Agent Flow Diagram</h2>
+  <div class="flow-grid">{''.join(flow_cards)}</div>
+  <details>
+    <summary>Technical agent trace</summary>
+    <pre>{html_escape(technical_trace)}</pre>
+  </details>
   <h2>Agent Plan</h2>
   <ol>{''.join(f'<li>{html_escape(step)}</li>' for step in result.plan)}</ol>
   <h2>Candidate Decisions</h2>

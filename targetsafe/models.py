@@ -27,6 +27,14 @@ class ToolCallLog:
     item_count: int = 0
     message: str = ""
     error_category: str = ""
+    duration_ms: float | None = None
+    attempt: int = 1
+    provider: str = ""
+    endpoint: str = ""
+    error_code: str = ""
+    severity: str = "info"
+    fallback_used: bool = False
+    debug_ref: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -134,6 +142,11 @@ class CandidateRecord:
     nearest_analogs: list[dict[str, Any]] = field(default_factory=list)
     molecular_twin: dict[str, Any] = field(default_factory=dict)
     evidence_node_ids: list[str] = field(default_factory=list)
+    activity_cliff_flags: list[dict[str, Any]] = field(default_factory=list)
+    assay_recommendations: list[dict[str, Any]] = field(default_factory=list)
+    target_specific_interpretation: str = ""
+    candidate_errors: list[dict[str, Any]] = field(default_factory=list)
+    candidate_decision_flow: list[dict[str, Any]] = field(default_factory=list)
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
@@ -162,6 +175,11 @@ class CandidateRecord:
             "nearest_analogs": self.nearest_analogs,
             "molecular_twin": self.molecular_twin,
             "evidence_node_ids": self.evidence_node_ids,
+            "activity_cliff_flags": self.activity_cliff_flags,
+            "assay_recommendations": self.assay_recommendations,
+            "target_specific_interpretation": self.target_specific_interpretation,
+            "candidate_errors": self.candidate_errors,
+            "candidate_decision_flow": self.candidate_decision_flow,
         }
 
 
@@ -189,6 +207,18 @@ class PipelineResult:
     input_example_id: str = ""
     library_report: dict[str, Any] = field(default_factory=dict)
     screening_stages: list[dict[str, Any]] = field(default_factory=list)
+    target_profile: dict[str, Any] = field(default_factory=dict)
+    scoring_mode: str = "scored_pilot"
+    assay_plan: dict[str, Any] = field(default_factory=dict)
+    activity_cliff_report: dict[str, Any] = field(default_factory=dict)
+    target_readiness: dict[str, Any] = field(default_factory=dict)
+    scientific_extensions: dict[str, Any] = field(default_factory=dict)
+    error_summary: dict[str, Any] = field(default_factory=dict)
+    log_path: str = ""
+    performance_summary: dict[str, Any] = field(default_factory=dict)
+    cache_summary: dict[str, Any] = field(default_factory=dict)
+    api_circuit_breaker_summary: dict[str, Any] = field(default_factory=dict)
+    agent_trace_summary: dict[str, Any] = field(default_factory=dict)
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
@@ -214,4 +244,16 @@ class PipelineResult:
             "input_example_id": self.input_example_id,
             "library_report": self.library_report,
             "screening_stages": self.screening_stages,
+            "target_profile": self.target_profile,
+            "scoring_mode": self.scoring_mode,
+            "assay_plan": self.assay_plan,
+            "activity_cliff_report": self.activity_cliff_report,
+            "target_readiness": self.target_readiness,
+            "scientific_extensions": self.scientific_extensions,
+            "error_summary": self.error_summary,
+            "log_path": self.log_path,
+            "performance_summary": self.performance_summary,
+            "cache_summary": self.cache_summary,
+            "api_circuit_breaker_summary": self.api_circuit_breaker_summary,
+            "agent_trace_summary": self.agent_trace_summary,
         }

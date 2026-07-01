@@ -118,6 +118,18 @@ export interface Candidate {
     sections?: Record<string, unknown>;
   };
   evidence_node_ids: string[];
+  activity_cliff_flags: Array<Record<string, unknown>>;
+  assay_recommendations: Array<Record<string, unknown>>;
+  target_specific_interpretation: string;
+  candidate_errors: Array<Record<string, unknown>>;
+  candidate_decision_flow: CandidateDecisionFlowNode[];
+}
+
+export interface CandidateDecisionFlowNode {
+  id: string;
+  label: string;
+  status: "done" | "review" | "fallback" | "blocked" | string;
+  summary: string;
 }
 
 export interface EvidenceGraph {
@@ -140,6 +152,33 @@ export interface AgentEvent {
   status: string;
   candidate_id?: string | null;
   detail: Record<string, unknown>;
+}
+
+export interface AgentFlowNode {
+  id: string;
+  label: string;
+  agent?: string;
+  status: "done" | "review" | "fallback" | "blocked" | string;
+  event_count?: number;
+  summary?: string;
+  event_steps?: number[];
+}
+
+export interface AgentFlowEdge {
+  source: string;
+  target: string;
+  type?: string;
+}
+
+export interface AgentTraceSummary {
+  schema?: string;
+  plain_summary: string[];
+  flow_nodes: AgentFlowNode[];
+  flow_edges: AgentFlowEdge[];
+  phase_summaries: Record<string, { label?: string; status?: string; summary?: string; event_count?: number }>;
+  fallback_events_count: number;
+  critic_findings_count: number;
+  decision_impact: string;
 }
 
 export interface EvidenceMode {
@@ -212,6 +251,18 @@ export interface PipelineResult {
   input_example_id: string;
   library_report: LibraryReport;
   screening_stages: ScreeningStage[];
+  target_profile: Record<string, unknown>;
+  scoring_mode: string;
+  assay_plan: Record<string, unknown>;
+  activity_cliff_report: Record<string, unknown>;
+  target_readiness: Record<string, unknown>;
+  scientific_extensions: Record<string, unknown>;
+  error_summary: ErrorSummary;
+  log_path: string;
+  performance_summary: Record<string, unknown>;
+  cache_summary: Record<string, unknown>;
+  api_circuit_breaker_summary: Record<string, unknown>;
+  agent_trace_summary: AgentTraceSummary;
 }
 
 export interface RunRequest {
@@ -287,6 +338,32 @@ export interface StructureDepiction {
   alerts: string[];
 }
 
+export interface MoleculeCheckResult {
+  schema: string;
+  name: string;
+  target: string;
+  input_smiles: string;
+  canonical_smiles: string;
+  valid: boolean;
+  viability: "invalid" | "blocked" | "review" | "plausible_seed" | string;
+  can_use_as_seed: boolean;
+  structure_svg: string | null;
+  descriptors: DescriptorResult;
+  reasons: string[];
+  suggestions: string[];
+  interpretation: string;
+}
+
+export interface SavedMolecule {
+  id: string;
+  name: string;
+  smiles: string;
+  target: string;
+  viability: string;
+  saved_at: string;
+  structure_svg?: string | null;
+}
+
 export interface RuntimeStatus {
   schema?: string;
   gpu?: Record<string, unknown>;
@@ -319,6 +396,9 @@ export interface RunExample {
   label: string;
   description: string;
   expected_behavior: string;
+  scoring_mode?: string;
+  interpretation_limit?: string;
+  default_library_sources?: string[];
   request: Partial<RunRequest>;
 }
 
@@ -328,6 +408,16 @@ export interface ToolErrorSummary {
   categories?: Record<string, number>;
   by_source?: Record<string, unknown>;
   has_live_errors?: boolean;
+  interpretation?: string;
+}
+
+export interface ErrorSummary {
+  schema?: string;
+  total_errors?: number;
+  categories?: Record<string, number>;
+  severities?: Record<string, number>;
+  sources?: Record<string, number>;
+  has_blocking_error?: boolean;
   interpretation?: string;
 }
 
